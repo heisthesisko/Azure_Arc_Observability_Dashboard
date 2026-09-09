@@ -7,6 +7,24 @@ self-contained dashboard.
 
 The dashboard supports local single-user installations and authenticated shared deployments.
 
+## Releases and versioning
+
+The current stable release is **v1.0.0**. Download deployment-specific archives from the
+[GitHub Releases page](https://github.com/heisthesisko/Azure_Arc_Observability_Dashboard/releases).
+See [Release Notes](RELEASE_NOTES.md) for included capabilities, deployment packages,
+security characteristics, and operational constraints.
+
+The project uses a lightweight Semantic Versioning scheme:
+
+| Change | Version increment | Example |
+|---|---|---|
+| Compatible bug, security, or documentation correction | Patch | `v1.0.0` to `v1.0.1` |
+| Backward-compatible capability or deployment enhancement | Minor | `v1.0.0` to `v1.1.0` |
+| Breaking configuration, deployment, or compatibility change | Major | `v1.0.0` to `v2.0.0` |
+
+Only tested, publishable snapshots receive a version tag and GitHub Release. The `main`
+branch represents the most recently published public snapshot.
+
 ## Capabilities
 
 | Capability | Highlights |
