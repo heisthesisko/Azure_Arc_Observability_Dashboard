@@ -9,7 +9,7 @@ The dashboard supports local single-user installations and authenticated shared 
 
 ## Releases and versioning
 
-The current stable release is **v1.0.0**. Download deployment-specific archives from the
+The current stable release is **v1.0.1**. Download deployment-specific archives from the
 [GitHub Releases page](https://github.com/heisthesisko/Azure_Arc_Observability_Dashboard/releases).
 See [Release Notes](RELEASE_NOTES.md) for included capabilities, deployment packages,
 security characteristics, and operational constraints.

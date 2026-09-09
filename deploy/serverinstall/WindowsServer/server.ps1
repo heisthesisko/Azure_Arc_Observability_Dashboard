@@ -50,6 +50,7 @@ Architecture (enterprise scale):
 #>
 
 $ErrorActionPreference = 'Stop'
+$applicationVersion = 'v1.0.1'
 
 # region Encrypted local configuration
 # Dashboard scope contains Azure identifiers rather than credentials, but it is
@@ -828,6 +829,23 @@ function Invoke-EnterpriseApiRequestAsync {
 # endregion Request-handling RunspacePool
 
 # region HTTP plumbing (main thread: pages, setup, logout)
+function Add-VersionBadgeToHtml {
+    param([byte[]]$Body)
+
+    $html = [Text.Encoding]::UTF8.GetString($Body)
+    if ($html -notmatch '(?i)</body>') {
+        return $Body
+    }
+    $badge = '<div aria-label="Dashboard version {0}" style="position:fixed;right:12px;bottom:10px;z-index:10000;padding:4px 8px;border:1px solid #33475b;border-radius:4px;background:rgba(8,16,24,.92);color:#96aab7;font:600 11px/1.2 system-ui,sans-serif;letter-spacing:.04em;pointer-events:none">{0}</div>' -f $applicationVersion
+    return [Text.Encoding]::UTF8.GetBytes(
+        [regex]::new('</body>', [Text.RegularExpressions.RegexOptions]::IgnoreCase).Replace(
+            $html,
+            "$badge`n</body>",
+            1
+        )
+    )
+}
+
 function Write-HttpResponse {
     param(
         [Net.Sockets.NetworkStream]$Stream,
@@ -837,6 +855,9 @@ function Write-HttpResponse {
         [byte[]]$Body
     )
 
+    if ($ContentType.StartsWith('text/html')) {
+        $Body = [byte[]](Add-VersionBadgeToHtml -Body $Body)
+    }
     # Security headers prevent browser caching and content-type guessing for Azure data.
     $headers = "HTTP/1.1 $StatusCode $StatusText`r`nContent-Type: $ContentType`r`nContent-Length: $($Body.Length)`r`nCache-Control: no-store`r`nPragma: no-cache`r`nX-Content-Type-Options: nosniff`r`nReferrer-Policy: no-referrer`r`nConnection: close`r`n`r`n"
     $headerBytes = [Text.Encoding]::ASCII.GetBytes($headers)

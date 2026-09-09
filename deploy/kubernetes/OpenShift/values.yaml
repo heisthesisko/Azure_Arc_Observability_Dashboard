@@ -3,7 +3,7 @@ fullnameOverride: ""
 
 image:
   repository: registry.example.com/arc-operations-dashboard
-  tag: "1.0.0"
+  tag: "1.0.1"
   digest: ""
   pullPolicy: IfNotPresent
   pullSecrets: []

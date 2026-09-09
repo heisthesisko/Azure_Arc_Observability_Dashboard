@@ -1,5 +1,43 @@
 # Azure Arc Observability Dashboard release notes
 
+## v1.0.1 - 2026-09-08
+
+This patch release adds the dashboard version to the user interface so operators can
+identify the deployed build while viewing any dashboard page.
+
+### Changed
+
+- Every HTML page now displays a compact `v1.0.1` badge in the lower-right corner.
+- The badge is injected by the runtime response layer, keeping the displayed version
+  consistent across dashboard, setup, and signed-out pages.
+- The badge includes an accessible label for assistive technology.
+- Windows Server, Linux Server, Docker, AKS, and OpenShift deployment packages are
+  republished for this version.
+
+### Release assets
+
+| Archive | Intended target |
+|---|---|
+| `Azure-Arc-Observability-Dashboard-WindowsServer-v1.0.1.zip` | Windows workstation or Windows Server |
+| `Azure-Arc-Observability-Dashboard-LinuxServer-v1.0.1.zip` | Ubuntu, Debian, Fedora, or RHEL-family Linux |
+| `Azure-Arc-Observability-Dashboard-Docker-v1.0.1.zip` | Local Docker Engine or Docker Desktop |
+| `Azure-Arc-Observability-Dashboard-AKS-v1.0.1.zip` | Azure Kubernetes Service |
+| `Azure-Arc-Observability-Dashboard-OpenShift-v1.0.1.zip` | Red Hat OpenShift |
+
+Use the accompanying `SHA256SUMS.txt` file to verify archive integrity.
+
+### Upgrade notes
+
+No configuration or persistent-state migration is required from `v1.0.0`.
+
+- Windows and Linux users should stop the existing process, preserve the documented
+  encrypted configuration and monitoring state, and replace the application files with
+  the `v1.0.1` package.
+- Docker users should rebuild the image from the `v1.0.1` Docker package while preserving
+  the existing named data volume.
+- AKS and OpenShift users should build and deploy the `v1.0.1` dashboard image, then apply
+  the corresponding chart package using the documented singleton upgrade procedure.
+
 ## v1.0.0 - 2026-09-08
 
 This is the initial public release of the Azure Arc Observability Dashboard. It provides
