@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc Estate Summary</title>
+  <style>
+    :root {
+      --bg:#09131c; --panel:#101d27; --panel-2:#142530; --line:#29414f; --text:#e8f0f5;
+      --muted:#96aab7; --blue:#46a4e8; --cyan:#41c7d9; --green:#31c48d; --yellow:#f6c344;
+      --orange:#f59e42; --red:#f05252; --purple:#a48afb;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--text); background:radial-gradient(circle at 80% 0, rgba(70,164,232,.12), transparent 34%), var(--bg); font:14px/1.45 "Segoe UI", Arial, sans-serif; }
+    main { width:min(1740px, calc(100% - 40px)); margin:auto; padding:24px 0 48px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:20px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { margin-bottom:5px; font-size:28px; font-weight:650; }
+    h2 { margin-bottom:4px; font-size:18px; }
+    h3 { margin-bottom:6px; font-size:15px; }
+    .subtitle,.meta,.note { color:var(--muted); }
+    .meta { font-size:12px; }
+    nav.tabs { display:flex; width:min(1296px, calc(100vw - 40px)); gap:6px; margin-top:12px; flex-wrap:wrap; }
+    nav.tabs a,.setup-button {
+      padding:7px 14px; border:1px solid var(--line); border-radius:6px; color:var(--muted);
+      text-decoration:none; font-size:13px; font-weight:600;
+    }
+    nav.tabs a { display:inline-flex; width:156px; min-height:36px; align-items:center; justify-content:center; padding:7px 8px; text-align:center; }
+    nav.tabs a:hover,.setup-button:hover { border-color:var(--blue); color:var(--text); }
+    nav.tabs a.active { border-color:var(--blue); color:#071019; background:var(--blue); }
+    .actions { display:flex; justify-content:flex-end; gap:9px; flex-wrap:wrap; }
+    button,input {
+      min-height:40px; padding:8px 12px; border:1px solid var(--line); border-radius:6px;
+      color:var(--text); background:var(--panel); font:inherit;
+    }
+    button { cursor:pointer; }
+    button:hover { border-color:var(--blue); }
+    button:disabled { opacity:.55; cursor:wait; }
+    .setup-button { display:inline-flex; min-height:40px; align-items:center; }
+    .logout-button { border-color:rgba(240,82,82,.55); color:#ffaaaa; }
+    .report-context {
+      margin-bottom:18px; padding:14px; border:1px solid var(--line); border-radius:8px; background:var(--panel);
+    }
+    .context-stamp { padding:9px 12px; border-left:3px solid var(--cyan); color:var(--muted); font-size:12px; }
+    .loading,.error {
+      display:flex; align-items:center; gap:11px; margin-bottom:16px; padding:12px 14px;
+      border:1px solid var(--blue); border-radius:6px; background:rgba(70,164,232,.09);
+    }
+    .error { border-color:var(--red); color:#ffb7b7; background:rgba(240,82,82,.1); }
+    .spinner { width:16px; height:16px; border:2px solid rgba(70,164,232,.28); border-top-color:var(--blue); border-radius:50%; animation:spin .9s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .hero {
+      display:grid; grid-template-columns:240px minmax(0,1fr) 420px; gap:14px; margin-bottom:18px;
+    }
+    .score-panel,.narrative,.scope-panel,.section,.metric-card,.action-card {
+      border:1px solid var(--line); border-radius:8px; background:linear-gradient(145deg, rgba(20,37,48,.98), rgba(13,27,37,.98));
+    }
+    .score-panel { display:grid; place-items:center; padding:22px; text-align:center; }
+    .score-ring {
+      --score:0; display:grid; width:150px; height:150px; place-items:center; border-radius:50%;
+      background:conic-gradient(var(--score-color,var(--green)) calc(var(--score)*1%), #263b48 0);
+    }
+    .score-ring::before { grid-area:1/1; width:112px; height:112px; border-radius:50%; background:var(--panel); content:""; }
+    .score-value { grid-area:1/1; z-index:1; font-size:36px; font-weight:750; }
+    .score-label { margin-top:12px; font-size:16px; font-weight:700; }
+    .narrative,.scope-panel { padding:20px; }
+    .narrative p { margin-bottom:10px; color:#c6d6df; font-size:15px; }
+    .signal-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .signal { padding:5px 9px; border-radius:999px; color:#b9dcf6; background:rgba(70,164,232,.12); font-size:11px; font-weight:650; }
+    .scope-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-top:12px; }
+    .scope-item { padding:10px; border:1px solid rgba(41,65,79,.8); border-radius:6px; background:rgba(9,19,28,.42); }
+    .scope-item .value { font-size:20px; font-weight:700; }
+    .scope-item .label { color:var(--muted); font-size:11px; }
+    .metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+    .metric-card { min-height:110px; padding:14px; border-top:3px solid var(--blue); }
+    .metric-card.good { border-top-color:var(--green); }
+    .metric-card.warn { border-top-color:var(--yellow); }
+    .metric-card.bad { border-top-color:var(--red); }
+    .metric-card.purple { border-top-color:var(--purple); }
+    .metric-card .label { color:var(--muted); font-size:11px; }
+    .metric-card .value { margin:5px 0 2px; font-size:25px; font-weight:750; }
+    .metric-card .detail { color:var(--muted); font-size:11px; }
+    .cyber-metric-grid { grid-template-columns:repeat(3,1fr); margin-bottom:14px; }
+    .section { margin-bottom:18px; overflow:hidden; }
+    .section-title { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:14px 16px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.015); }
+    .section-body { padding:16px; }
+    .actions-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+    .action-card { position:relative; padding:14px 14px 14px 18px; background:#0d1a23; }
+    .action-card::before { position:absolute; inset:0 auto 0 0; width:4px; border-radius:8px 0 0 8px; background:var(--blue); content:""; }
+    .action-card.critical::before { background:var(--red); }
+    .action-card.high::before { background:var(--orange); }
+    .action-card.medium::before { background:var(--yellow); }
+    .action-card.opportunity::before { background:var(--cyan); }
+    .action-top { display:flex; justify-content:space-between; gap:12px; }
+    .priority { color:var(--muted); font-size:10px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+    .owner { color:var(--muted); font-size:11px; }
+    .action-card p { margin:7px 0 0; color:#bdccd5; font-size:12px; }
+    .two-column { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .three-column { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+    .subpanel { min-width:0; padding:14px; border:1px solid var(--line); border-radius:7px; background:rgba(9,19,28,.45); }
+    .bar-row { display:grid; grid-template-columns:minmax(130px,1fr) 3fr 75px; align-items:center; gap:9px; margin-top:10px; font-size:12px; }
+    .bar-track { height:8px; overflow:hidden; border-radius:6px; background:#263b48; }
+    .bar-fill { height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--blue),var(--cyan)); }
+    .bar-fill.good { background:var(--green); }
+    .bar-fill.warn { background:var(--yellow); }
+    .bar-fill.bad { background:var(--red); }
+    .bar-value { color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { padding:9px 10px; border-bottom:1px solid rgba(41,65,79,.65); text-align:left; }
+    th { color:#b8c8d3; font-weight:600; }
+    .status { display:inline-block; padding:3px 8px; border-radius:999px; font-size:10px; font-weight:700; }
+    .status.good { color:#9ee5ca; background:rgba(49,196,141,.14); }
+    .status.warn { color:#ffe08a; background:rgba(246,195,68,.14); }
+    .status.bad { color:#ffb7b7; background:rgba(240,82,82,.15); }
+    .callout { padding:12px 14px; border-left:4px solid var(--cyan); background:rgba(65,199,217,.07); color:#c6d6df; }
+    .limitations { margin:0; padding-left:19px; color:var(--muted); font-size:12px; }
+    .limitations li { margin:5px 0; }
+    .report-footer { padding:10px 2px; color:var(--muted); font-size:11px; text-align:center; }
+    .hidden { display:none !important; }
+    @media (max-width:1200px) {
+      .hero { grid-template-columns:220px 1fr; }
+      .scope-panel { grid-column:1/-1; }
+      .metric-grid { grid-template-columns:repeat(3,1fr); }
+      nav.tabs { flex-wrap:wrap; }
+    }
+    @media print {
+      :root { --bg:#fff; --panel:#fff; --panel-2:#f7f9fb; --line:#cad4da; --text:#14212a; --muted:#52646f; }
+      body { background:#fff; font-size:11px; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+      main { width:100%; padding:0; }
+      header .actions,nav.tabs,.loading,.error { display:none !important; }
+      header { margin-bottom:10px; }
+      .report-context { padding:8px; }
+      .hero { grid-template-columns:180px 1fr 330px; gap:8px; }
+      .score-panel,.narrative,.scope-panel,.section,.metric-card,.action-card { break-inside:avoid; background:#fff; }
+      .score-ring::before { background:#fff; }
+      .metric-grid { grid-template-columns:repeat(6,1fr); gap:6px; }
+      .metric-card { min-height:80px; padding:9px; }
+      .metric-card .value { font-size:19px; }
+      .section { break-inside:avoid; margin-bottom:10px; }
+      .section-body { padding:10px; }
+      .action-card { background:#fff; }
+      .subpanel { background:#fff; }
+      .narrative p,.action-card p,.callout { color:#283b47; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Arc Estate Summary</h1>
+        <div class="subtitle" id="account">Loading customer-ready estate report...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html" class="active">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="printReport" type="button">Print / Save PDF</button>
+        <button id="refresh" type="button">Refresh Report</button>
+        <button class="logout-button" id="logout" type="button">Logout</button>
+      </div>
+    </header>
+
+    <div class="report-context">
+      <div class="context-stamp" id="reportStamp">Generated report metadata is loading...</div>
+    </div>
+
+    <div class="loading" id="loading"><span class="spinner"></span><span id="loadingMessage">Building customer-ready Arc summary...</span></div>
+    <div class="error hidden" id="error"></div>
+
+    <div class="hidden" id="report">
+      <section class="hero">
+        <div class="score-panel">
+          <div class="score-ring" id="scoreRing"><span class="score-value" id="scoreValue">-</span></div>
+          <div class="score-label" id="scoreLabel">Overall posture</div>
+          <div class="meta">Operational readiness indicator</div>
+        </div>
+        <div class="narrative">
+          <h2>Global summary</h2>
+          <p id="leadershipSummary"></p>
+          <p id="riskSummary"></p>
+          <div class="signal-row" id="signals"></div>
+        </div>
+        <div class="scope-panel">
+          <h2>Report scope</h2>
+          <div class="meta">Resources visible in the configured subscription and selected resource groups</div>
+          <div class="scope-grid" id="scopeGrid"></div>
+        </div>
+      </section>
+
+      <div class="metric-grid" id="headlineMetrics"></div>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Cybersecurity posture with Microsoft Defender</h2><div class="meta">Defender coverage indicators and security-update exposure reported across Arc-enabled servers and SQL services</div></div></div>
+        <div class="section-body">
+          <div class="metric-grid cyber-metric-grid" id="defenderMetrics"></div>
+          <div class="two-column">
+            <div class="callout" id="defenderNarrative"></div>
+            <div class="subpanel">
+              <h3>Recommended security focus</h3>
+              <ul class="limitations" id="defenderFocus"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Prioritized action plan</h2><div class="meta">Recommended next steps derived from the current snapshot</div></div><div class="meta" id="actionCount"></div></div>
+        <div class="section-body"><div class="actions-grid" id="actions"></div></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Server operational posture</h2><div class="meta">Availability, workload pressure, lifecycle, alerts, and patch exposure</div></div></div>
+        <div class="section-body three-column">
+          <div class="subpanel"><h3>Health and operations</h3><div id="serverHealthBars"></div></div>
+          <div class="subpanel"><h3>Windows lifecycle posture</h3><div id="windowsLifecycleBars"></div></div>
+          <div class="subpanel"><h3>Linux lifecycle posture</h3><div id="linuxLifecycleBars"></div></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Operating system image distribution</h2><div class="meta">Fleet composition grouped by the exact image/SKU reported by the Arc agent, with OS-name fallback</div></div><div class="meta" id="osImageCount"></div></div>
+        <div class="section-body"><div class="subpanel"><div id="osImageBars"></div></div></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Management and security coverage</h2><div class="meta">Arc agent capabilities across applicable servers</div></div></div>
+        <div class="section-body">
+          <div class="callout" id="coverageNarrative"></div>
+          <table>
+            <thead><tr><th>Capability</th><th>Installed</th><th>Applicable</th><th>Coverage</th><th>Gap</th><th>Status</th></tr></thead>
+            <tbody id="coverageRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Infrastructure composition</h2><div class="meta">Hosting platforms and geographic distribution</div></div></div>
+        <div class="section-body two-column">
+          <div class="subpanel"><h3>Cloud and hypervisor mix</h3><div id="platformBars"></div></div>
+          <div class="subpanel"><h3>Largest managed geographies</h3><div id="geographyBars"></div></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Arc-enabled Kubernetes posture</h2><div class="meta">Connectivity, capacity, extension coverage, and certificate risk</div></div></div>
+        <div class="section-body three-column">
+          <div class="subpanel"><h3>Connectivity and health</h3><div id="kubernetesHealth"></div></div>
+          <div class="subpanel"><h3>Management coverage</h3><div id="kubernetesCoverage"></div></div>
+          <div class="subpanel"><h3>Platform profile</h3><div id="kubernetesProfile"></div></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>Arc-enabled SQL posture</h2><div class="meta">Discovery, monitoring, Defender, migration readiness, and database footprint</div></div></div>
+        <div class="section-body">
+          <div class="callout" id="sqlNarrative"></div>
+          <div class="three-column" style="margin-top:14px">
+            <div class="subpanel"><h3>SQL control coverage</h3><div id="sqlCoverage"></div></div>
+            <div class="subpanel"><h3>Versions and editions</h3><div id="sqlProfile"></div></div>
+            <div class="subpanel"><h3>Licensing and services</h3><div id="sqlLicensing"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="report-footer" id="footer"></div>
+    </div>
+  </main>
+
+  <script>
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+    const number = value => Number(value || 0);
+    const count = value => number(value).toLocaleString();
+    const percent = (part, total) => total ? Math.round(number(part) * 100 / number(total)) : 0;
+    const clamp = value => Math.max(0, Math.min(100, value));
+    let refreshInProgress = false;
+    let loadingTimer = null;
+
+    const capabilityLabels = {
+      azureMonitorAgent: 'Azure Monitor Agent',
+      dependencyAgent: 'Dependency Agent',
+      changeTracking: 'Change Tracking',
+      guestConfiguration: 'Guest Configuration',
+      defenderForServers: 'Defender for Servers',
+      updateManager: 'Azure Update Manager',
+      customScript: 'Custom Script Extension',
+      sqlServer: 'Azure extension for SQL Server',
+      adminCenter: 'Windows Admin Center'
+    };
+
+    function formatBytes(value) {
+      let bytes = number(value);
+      if (!bytes) return '0 B';
+      const units = ['B','KB','MB','GB','TB','PB'];
+      let index = 0;
+      while (bytes >= 1024 && index < units.length - 1) { bytes /= 1024; index++; }
+      return `${bytes.toFixed(index >= 3 ? 1 : 0)} ${units[index]}`;
+    }
+
+    function formatMb(value) {
+      return formatBytes(number(value) * 1024 * 1024);
+    }
+
+    function addScope(label, value) {
+      const item = document.createElement('div');
+      item.className = 'scope-item';
+      const valueElement = document.createElement('div');
+      valueElement.className = 'value';
+      valueElement.textContent = value;
+      const labelElement = document.createElement('div');
+      labelElement.className = 'label';
+      labelElement.textContent = label;
+      item.append(valueElement, labelElement);
+      byId('scopeGrid').appendChild(item);
+    }
+
+    function addMetric(label, value, detail, tone = '', containerId = 'headlineMetrics') {
+      const card = document.createElement('div');
+      card.className = `metric-card ${tone}`.trim();
+      for (const [className, content] of [['label',label],['value',value],['detail',detail]]) {
+        const element = document.createElement('div');
+        element.className = className;
+        element.textContent = content;
+        card.appendChild(element);
+      }
+      byId(containerId).appendChild(card);
+    }
+
+    function addBar(containerId, label, value, total, tone = '') {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const name = document.createElement('div');
+      name.textContent = label;
+      const track = document.createElement('div');
+      track.className = 'bar-track';
+      const fill = document.createElement('div');
+      fill.className = `bar-fill ${tone}`.trim();
+      fill.style.width = `${clamp(percent(value, total))}%`;
+      track.appendChild(fill);
+      const result = document.createElement('div');
+      result.className = 'bar-value';
+      result.textContent = `${count(value)} | ${percent(value, total)}%`;
+      row.append(name, track, result);
+      byId(containerId).appendChild(row);
+    }
+
+    function addDistribution(containerId, items, total, take = 7) {
+      for (const item of (items || []).slice(0, take)) addBar(containerId, item.name || 'Unknown', item.count, total);
+      if (!(items || []).length) {
+        const empty = document.createElement('div');
+        empty.className = 'note';
+        empty.textContent = 'No resources reported for this section.';
+        byId(containerId).appendChild(empty);
+      }
+    }
+
+    function addGroupLabel(containerId, value) {
+      const label = document.createElement('div');
+      label.className = 'meta';
+      label.style.marginTop = byId(containerId).children.length ? '14px' : '0';
+      label.textContent = value;
+      byId(containerId).appendChild(label);
+    }
+
+    function addAction(actions, severity, title, rationale, owner, target) {
+      actions.push({ severity, title, rationale, owner, target });
+    }
+
+    function renderAction(action) {
+      const card = document.createElement('article');
+      card.className = `action-card ${action.severity}`;
+      const top = document.createElement('div');
+      top.className = 'action-top';
+      const heading = document.createElement('div');
+      const priority = document.createElement('div');
+      priority.className = 'priority';
+      priority.textContent = action.severity;
+      const title = document.createElement('h3');
+      title.textContent = action.title;
+      heading.append(priority, title);
+      const owner = document.createElement('div');
+      owner.className = 'owner';
+      owner.textContent = action.owner;
+      top.append(heading, owner);
+      const rationale = document.createElement('p');
+      rationale.textContent = action.rationale;
+      const target = document.createElement('p');
+      target.textContent = `Suggested outcome: ${action.target}`;
+      card.append(top, rationale, target);
+      byId('actions').appendChild(card);
+    }
+
+    function addSignal(value) {
+      const signal = document.createElement('span');
+      signal.className = 'signal';
+      signal.textContent = value;
+      byId('signals').appendChild(signal);
+    }
+
+    function addListItem(id, value) {
+      const item = document.createElement('li');
+      item.textContent = value;
+      byId(id).appendChild(item);
+    }
+
+    function coverageTone(value) {
+      if (value >= 90) return 'good';
+      if (value >= 70) return 'warn';
+      return 'bad';
+    }
+
+    function renderCoverage(deployment, total) {
+      const rows = byId('coverageRows');
+      rows.replaceChildren();
+      const coverage = {};
+      for (const entry of deployment || []) {
+        const rate = percent(entry.installed, entry.applicable);
+        coverage[entry.capability] = rate;
+        const row = document.createElement('tr');
+        const values = [
+          capabilityLabels[entry.capability] || entry.capability,
+          count(entry.installed), count(entry.applicable), `${rate}%`,
+          count(Math.max(0, number(entry.applicable) - number(entry.installed)))
+        ];
+        for (const value of values) {
+          const cell = document.createElement('td');
+          cell.textContent = value;
+          row.appendChild(cell);
+        }
+        const statusCell = document.createElement('td');
+        const status = document.createElement('span');
+        const tone = coverageTone(rate);
+        status.className = `status ${tone}`;
+        status.textContent = tone === 'good' ? 'Strong' : tone === 'warn' ? 'Improve' : 'Action required';
+        statusCell.appendChild(status);
+        row.appendChild(statusCell);
+        rows.appendChild(row);
+      }
+      const coreRates = ['azureMonitorAgent','updateManager','defenderForServers','guestConfiguration'].map(key => coverage[key] || 0);
+      const average = coreRates.length ? Math.round(coreRates.reduce((sum, value) => sum + value, 0) / coreRates.length) : 0;
+      text('coverageNarrative', `${average}% average coverage across the four core observability, patch, security, and configuration controls. Close the largest gaps before expanding optional extensions.`);
+      return coverage;
+    }
+
+    function calculateScore(operations, kubernetes, sql, coverage) {
+      const metrics = [];
+      const add = (value, weight) => metrics.push({ value:clamp(value), weight });
+      if (operations.total) {
+        add(100 - percent(operations.down, operations.total), 25);
+        const lifecycleRisk = number(operations.lifecycle?.unsupported) + number(operations.lifecycle?.['esu-ending']) +
+          number(operations.linuxLifecycle?.unsupported) + number(operations.linuxLifecycle?.['extended-support']);
+        add(100 - percent(lifecycleRisk, operations.total), 15);
+        add(((coverage.azureMonitorAgent || 0) + (coverage.updateManager || 0) + (coverage.defenderForServers || 0)) / 3, 20);
+      }
+      if (kubernetes.total) {
+        add(100 - percent(kubernetes.down, kubernetes.total), 10);
+        add(percent(kubernetes.autoUpgradeEnabled, kubernetes.total), 5);
+      }
+      if (sql.instanceTotal) {
+        add(percent(sql.protectedTotal, sql.instanceTotal), 15);
+        add(percent(sql.monitoredTotal, sql.engineTotal), 10);
+      }
+      if (!metrics.length) return 0;
+      return Math.round(metrics.reduce((sum, metric) => sum + metric.value * metric.weight, 0) / metrics.reduce((sum, metric) => sum + metric.weight, 0));
+    }
+
+    function buildActions(ops, kube, sql, coverage, workspaceErrors) {
+      const actions = [];
+      const lifecycle = ops.lifecycle || {};
+      const linuxLifecycle = ops.linuxLifecycle || {};
+      const lifecycleRisk = number(lifecycle.unsupported) + number(lifecycle['esu-ending']);
+      const linuxLifecycleRisk = number(linuxLifecycle.unsupported) + number(linuxLifecycle['extended-support']) +
+        number(linuxLifecycle['approaching-eol']) + number(linuxLifecycle.unknown);
+      if (ops.down) addAction(actions, 'critical', `Restore ${count(ops.down)} down or critical servers`, 'Disconnected or critically unhealthy resources reduce management visibility and may prevent patch, monitoring, and security operations.', 'Infrastructure operations', 'Restore connectivity, validate Arc agent health, and document any intentionally retired systems.');
+      if (kube.down) addAction(actions, 'critical', `Recover ${count(kube.down)} unhealthy Kubernetes clusters`, 'Down or critical connected clusters cannot be relied upon for current control-plane posture or extension management.', 'Platform engineering', 'Restore Arc connectivity and resolve reported agent errors.');
+      if (lifecycleRisk) addAction(actions, 'high', `Remediate ${count(lifecycleRisk)} lifecycle-exposed Windows servers`, `${count(lifecycle.unsupported)} are unsupported and ${count(lifecycle['esu-ending'])} are approaching the end of ESU coverage.`, 'Windows platform team', 'Approve upgrade, replacement, isolation, or formally funded extended-support plans.');
+      if (linuxLifecycleRisk) addAction(actions, 'high', `Review ${count(linuxLifecycleRisk)} lifecycle-exposed Linux servers`, `${count(linuxLifecycle.unsupported)} are unsupported, ${count(linuxLifecycle['extended-support'])} require extended-support entitlement validation, ${count(linuxLifecycle['approaching-eol'])} are approaching standard support end, and ${count(linuxLifecycle.unknown)} require manual classification.`, 'Linux platform team', 'Validate distribution entitlements and schedule supported-release upgrades with application owners.');
+      if (ops.activeAlerts) addAction(actions, 'high', `Triage ${count(ops.activeAlerts)} active alerts`, 'The report reflects alert activity from the latest one-hour window and should be reconciled with the operations queue.', 'NOC / service owners', 'Assign every actionable alert and suppress only documented non-actionable conditions.');
+      if (ops.pendingUpdates) addAction(actions, 'high', `Reduce ${count(ops.pendingUpdates)} pending updates`, 'Outstanding patches increase security and support exposure; dashboard totals aggregate the current assessment across the fleet.', 'Patch management', 'Prioritize security and critical classifications, coordinate maintenance windows, and verify reboot completion.');
+      if ((coverage.azureMonitorAgent || 0) < 90) addAction(actions, 'high', `Raise Azure Monitor Agent coverage from ${coverage.azureMonitorAgent || 0}%`, 'Incomplete monitoring coverage limits telemetry, capacity analysis, and incident investigation.', 'Observability team', 'Reach at least 90% coverage and verify Data Collection Rule associations.');
+      if ((coverage.defenderForServers || 0) < 90) addAction(actions, 'high', `Raise Defender for Servers coverage from ${coverage.defenderForServers || 0}%`, 'Unprotected Arc servers may not receive consistent vulnerability and threat posture assessment.', 'Security operations', 'Confirm plan assignment, extension health, and recommendation ownership for applicable servers.');
+      if ((coverage.updateManager || 0) < 90) addAction(actions, 'medium', `Expand Update Manager coverage from ${coverage.updateManager || 0}%`, 'Consistent assessment and maintenance orchestration improve evidence quality and patch governance.', 'Patch management', 'Define assessment, maintenance configuration, reboot, and exception standards.');
+      if (kube.staleConnectivity) addAction(actions, 'high', `Investigate ${count(kube.staleConnectivity)} stale cluster connections`, 'These clusters report connected but their latest connectivity signal is older than the expected threshold.', 'Platform engineering', 'Validate network path, agents, proxies, certificates, and control-plane reachability.');
+      if (kube.expiringCertificates) addAction(actions, 'high', `Renew ${count(kube.expiringCertificates)} expiring cluster identities`, 'Identity certificates within the warning window can become an avoidable connectivity outage.', 'Platform engineering', 'Renew before expiration and confirm post-renewal connectivity.');
+      if (kube.total && percent(kube.autoUpgradeEnabled, kube.total) < 90) addAction(actions, 'medium', 'Standardize Kubernetes agent auto-upgrade', `${count(kube.autoUpgradeEnabled)} of ${count(kube.total)} clusters report agent auto-upgrade enabled.`, 'Platform engineering', 'Enable auto-upgrade where change policy allows and document exceptions.');
+      const sqlProtectionGap = Math.max(0, number(sql.instanceTotal) - number(sql.protectedTotal));
+      const sqlConnectivityGap = Math.max(0, number(sql.instanceTotal) - number(sql.connectedTotal));
+      if (sqlConnectivityGap) addAction(actions, 'critical', `Restore visibility to ${count(sqlConnectivityGap)} disconnected SQL services`, 'Disconnected SQL resources weaken database inventory, protection evidence, monitoring, and migration planning.', 'Database operations', 'Restore Arc SQL connectivity and confirm database inventory is current.');
+      if (sqlProtectionGap) addAction(actions, 'high', `Review Defender coverage for ${count(sqlProtectionGap)} SQL services`, 'SQL services without reported protection require validation of onboarding, licensing, extension state, or accepted risk.', 'Database security', 'Establish protected status or a documented exception for every in-scope SQL service.');
+      const sqlMonitoringGap = Math.max(0, number(sql.engineTotal) - number(sql.monitoredTotal));
+      if (sqlMonitoringGap) addAction(actions, 'medium', `Enable monitoring for ${count(sqlMonitoringGap)} SQL engines`, 'Monitoring gaps reduce performance baselines and slow root-cause analysis.', 'Database operations', 'Enable supported monitoring and verify telemetry arrival.');
+      const sqlAssessmentGap = Math.max(0, number(sql.engineTotal) - number(sql.assessedTotal));
+      if (sqlAssessmentGap) addAction(actions, 'medium', `Assess migration readiness for ${count(sqlAssessmentGap)} SQL engines`, 'Unassessed engines lack a consistent modernization baseline for compatibility, target selection, and remediation planning.', 'Database architecture', 'Run migration assessment and assign compatibility findings to application owners.');
+      if (workspaceErrors?.length) addAction(actions, 'high', 'Resolve incomplete telemetry sources', `${workspaceErrors.length} workspace query error(s) were reported during snapshot generation. Some utilization or health observations may be incomplete.`, 'Azure platform team', 'Restore workspace query access and regenerate the report before final attestation.');
+      if (!actions.length) addAction(actions, 'opportunity', 'Sustain the current operating posture', 'No threshold-based critical action was generated from the current summaries.', 'Service owners', 'Review exceptions, test recovery procedures, and maintain evidence on the normal governance cadence.');
+      const rank = { critical:0, high:1, medium:2, opportunity:3 };
+      return actions.sort((left, right) => rank[left.severity] - rank[right.severity]).slice(0, 12);
+    }
+
+    function renderReport(data) {
+      const ops = data.operations.summary;
+      const kube = data.kubernetes.summary;
+      const sql = data.sql.summary;
+      const geography = data.global.geography;
+      const geoTotals = geography.totals;
+
+      text('account', `${data.operations.account.subscription} | ${data.operations.account.user}`);
+      const dates = [data.operations.generatedAt, data.kubernetes.generatedAt, data.sql.generatedAt, data.global.generatedAt].map(value => new Date(value));
+      const newest = new Date(Math.max(...dates));
+      text('updated', `Updated ${newest.toLocaleString()} | Azure Resource Graph inventory`);
+      text('reportStamp', `Generated ${new Date().toLocaleString()} | Azure snapshot data is not persisted in this report page.`);
+
+      byId('scopeGrid').replaceChildren();
+      addScope('Arc-enabled servers', count(ops.total));
+      addScope('Kubernetes clusters', count(kube.total));
+      addScope('SQL services', count(sql.instanceTotal));
+      addScope('Countries / regions', `${count(geoTotals.countries)} / ${count(ops.facets?.locations?.length)}`);
+      addScope('Resource groups', count(ops.facets?.resourceGroups?.length));
+      addScope('Managed nodes', count(geoTotals.nodes));
+
+      byId('headlineMetrics').replaceChildren();
+      addMetric('Server availability', `${100 - percent(ops.down, ops.total)}%`, `${count(ops.down)} down or critical`, ops.down ? 'bad' : 'good');
+      addMetric('Active alerts', count(ops.activeAlerts), 'Latest one-hour alert window', ops.activeAlerts ? 'bad' : 'good');
+      addMetric('Pending updates', count(ops.pendingUpdates), 'Across the server fleet', ops.pendingUpdates ? 'warn' : 'good');
+      addMetric('Average CPU', ops.averageCpuPercent === null ? '-' : `${ops.averageCpuPercent}%`, '30-minute fleet average');
+      addMetric('Average memory', ops.averageMemoryPercent === null ? '-' : `${ops.averageMemoryPercent}%`, '30-minute fleet average', 'purple');
+      addMetric('Managed capacity', `${count(ops.totalCpuCores)} cores`, `${formatBytes(ops.totalMemoryBytes)} memory | ${formatBytes(ops.totalStorageBytes)} storage`);
+      addMetric('SQL protection', `${percent(sql.protectedTotal, sql.instanceTotal)}%`, `${count(sql.protectedTotal)} of ${count(sql.instanceTotal)} SQL services`, percent(sql.protectedTotal, sql.instanceTotal) >= 90 ? 'good' : 'warn');
+      addMetric('SQL database estate', count(sql.databaseTotal), `${count(sql.engineTotal)} engines | ${formatMb(sql.footprintMB)} footprint`, 'purple');
+
+      const coverage = renderCoverage(ops.deployment, ops.total);
+      const defender = (ops.deployment || []).find(item => item.capability === 'defenderForServers') || {};
+      const defenderInstalled = number(defender.installed);
+      const defenderApplicable = number(defender.applicable);
+      const defenderServerRate = percent(defenderInstalled, defenderApplicable);
+      const defenderServerGap = Math.max(0, defenderApplicable - defenderInstalled);
+      const sqlDefenderRate = percent(sql.protectedTotal, sql.instanceTotal);
+      const sqlDefenderGap = Math.max(0, number(sql.instanceTotal) - number(sql.protectedTotal));
+      byId('defenderMetrics').replaceChildren();
+      addMetric('Defender for Servers coverage', defenderApplicable ? `${defenderServerRate}%` : '-', defenderApplicable ? `${count(defenderInstalled)} of ${count(defenderApplicable)} applicable Arc servers` : 'No applicable Arc servers reported', defenderApplicable ? coverageTone(defenderServerRate) : '', 'defenderMetrics');
+      addMetric('Arc server coverage gap', count(defenderServerGap), 'Applicable servers without a reported Defender extension', defenderServerGap ? 'bad' : 'good', 'defenderMetrics');
+      addMetric('SQL Defender protection', sql.instanceTotal ? `${sqlDefenderRate}%` : '-', sql.instanceTotal ? `${count(sql.protectedTotal)} of ${count(sql.instanceTotal)} SQL services` : 'No SQL services reported', sql.instanceTotal ? coverageTone(sqlDefenderRate) : '', 'defenderMetrics');
+      addMetric('SQL protection gap', count(sqlDefenderGap), 'SQL services not reporting protected status', sqlDefenderGap ? 'bad' : 'good', 'defenderMetrics');
+      addMetric('Security updates pending', count(ops.securityUpdates), `${count(ops.serversWithSecurityUpdates)} servers report security updates`, ops.securityUpdates ? 'warn' : 'good', 'defenderMetrics');
+      addMetric('Critical updates pending', count(ops.criticalUpdates), `${count(ops.serversWithCriticalUpdates)} servers report critical updates`, ops.criticalUpdates ? 'bad' : 'good', 'defenderMetrics');
+      const serverDefenderStatement = defenderApplicable ? `Defender for Servers extension coverage is ${defenderServerRate}% across applicable Arc servers` : 'No applicable Arc servers are reported for Defender coverage';
+      const sqlDefenderStatement = sql.instanceTotal ? `${sqlDefenderRate}% of Arc-enabled SQL services report Defender protection` : 'no Arc-enabled SQL services are reported';
+      text('defenderNarrative', `${serverDefenderStatement}, while ${sqlDefenderStatement}. The current patch assessments identify ${count(ops.securityUpdates)} security and ${count(ops.criticalUpdates)} critical updates. Treat these as operational coverage indicators: validate Defender plan assignment, sensor health, security recommendations, regulatory compliance, and accepted exceptions in Microsoft Defender for Cloud before attesting the environment.`);
+      byId('defenderFocus').replaceChildren();
+      addListItem('defenderFocus','Close Arc server and SQL protection gaps, then document approved exclusions and inapplicable resources.');
+      addListItem('defenderFocus','Prioritize critical and security updates using risk, exploitability, internet exposure, and workload criticality.');
+      addListItem('defenderFocus','Review Defender for Cloud recommendations, attack paths, secure score, alerts, and regulatory compliance directly in the Azure portal.');
+      addListItem('defenderFocus','Confirm Defender plans, licensing, auto-provisioning, endpoint sensor health, and security data retention with the security owner.');
+      const score = calculateScore(ops, kube, sql, coverage);
+      const scoreTone = score >= 85 ? 'Strong' : score >= 70 ? 'Managed with gaps' : score >= 50 ? 'Elevated risk' : 'Immediate attention';
+      const scoreColor = score >= 85 ? 'var(--green)' : score >= 70 ? 'var(--yellow)' : 'var(--red)';
+      byId('scoreRing').style.setProperty('--score', score);
+      byId('scoreRing').style.setProperty('--score-color', scoreColor);
+      text('scoreValue', score);
+      text('scoreLabel', scoreTone);
+
+      const lifecycle = ops.lifecycle || {};
+      const linuxLifecycle = ops.linuxLifecycle || {};
+      const windowsExposed = number(lifecycle.unsupported) + number(lifecycle['esu-ending']) + number(lifecycle['approaching-eol']);
+      const linuxExposed = number(linuxLifecycle.unsupported) + number(linuxLifecycle['extended-support']) + number(linuxLifecycle['approaching-eol']) + number(linuxLifecycle.unknown);
+      const exposed = windowsExposed + linuxExposed;
+      text('leadershipSummary', `The configured estate includes ${count(ops.total)} Arc-enabled servers, ${count(kube.total)} connected Kubernetes resources, and ${count(sql.instanceTotal)} Arc-enabled SQL services across ${count(geoTotals.countries)} countries. Current server availability is ${100 - percent(ops.down, ops.total)}%, with ${count(ops.activeAlerts)} active alerts and ${count(ops.pendingUpdates)} pending updates requiring operational governance.`);
+      text('riskSummary', exposed
+        ? `${count(windowsExposed)} Windows and ${count(linuxExposed)} Linux servers are in an unsupported, extended-support, approaching-end-of-support, or manual-review lifecycle band. The SQL estate includes ${count(sql.databaseTotal)} databases across ${count(sql.engineTotal)} engines, with ${percent(sql.protectedTotal, sql.instanceTotal)}% Defender protection and ${percent(sql.monitoredTotal, sql.engineTotal)}% engine monitoring coverage.`
+        : `No lifecycle-exposed Windows or Linux servers are reported in the current scope. SQL protection is ${percent(sql.protectedTotal, sql.instanceTotal)}% and SQL engine monitoring is ${percent(sql.monitoredTotal, sql.engineTotal)}%; continue validating exceptions through routine governance.`);
+      byId('signals').replaceChildren();
+      addSignal(`${count(ops.up)} healthy servers`);
+      addSignal(`${count(kube.connected)} connected clusters`);
+      addSignal(`${count(sql.protectedTotal)} protected SQL services`);
+      addSignal(`${count(geoTotals.vms)} VMs / ${count(geoTotals.hosts)} hosts`);
+
+      const actions = buildActions(ops, kube, sql, coverage, data.operations.workspaceErrors);
+      byId('actions').replaceChildren();
+      actions.forEach(renderAction);
+      text('actionCount', `${actions.length} prioritized recommendations`);
+
+      ['serverHealthBars','windowsLifecycleBars','linuxLifecycleBars','osImageBars','platformBars','geographyBars','kubernetesHealth','kubernetesCoverage','kubernetesProfile','sqlCoverage','sqlProfile','sqlLicensing'].forEach(id => byId(id).replaceChildren());
+      addBar('serverHealthBars','Healthy',ops.up,ops.total,'good');
+      addBar('serverHealthBars','Warning',ops.warning,ops.total,'warn');
+      addBar('serverHealthBars','Down / critical',ops.down,ops.total,'bad');
+      addBar('serverHealthBars','Unknown',ops.unknown,ops.total);
+      const windowsTotal = Object.values(lifecycle).reduce((sum, value) => sum + number(value), 0);
+      addBar('windowsLifecycleBars','Supported',lifecycle.supported,windowsTotal,'good');
+      addBar('windowsLifecycleBars','Approaching end of support',lifecycle['approaching-eol'],windowsTotal,'warn');
+      addBar('windowsLifecycleBars','ESU ending',lifecycle['esu-ending'],windowsTotal,'warn');
+      addBar('windowsLifecycleBars','Unsupported',lifecycle.unsupported,windowsTotal,'bad');
+      addBar('windowsLifecycleBars','Unknown / review',lifecycle.unknown,windowsTotal);
+      const linuxTotal = Object.values(linuxLifecycle).reduce((sum, value) => sum + number(value), 0);
+      addBar('linuxLifecycleBars','Supported',linuxLifecycle.supported,linuxTotal,'good');
+      addBar('linuxLifecycleBars','Approaching end of support',linuxLifecycle['approaching-eol'],linuxTotal,'warn');
+      addBar('linuxLifecycleBars','Extended support / verify',linuxLifecycle['extended-support'],linuxTotal,'warn');
+      addBar('linuxLifecycleBars','Unsupported',linuxLifecycle.unsupported,linuxTotal,'bad');
+      addBar('linuxLifecycleBars','Unknown / manual review',linuxLifecycle.unknown,linuxTotal);
+      addDistribution('osImageBars',ops.osImages,ops.total,ops.osImages?.length || 0);
+      text('osImageCount', `${count(ops.osImageCount)} distinct images reported`);
+      addDistribution('platformBars',(ops.platforms || []).map(item => ({name:item.platform,count:item.count})),ops.total,8);
+      addDistribution('geographyBars',(geography.countries || []).map(item => ({name:item.name,count:item.nodes})),geoTotals.nodes,8);
+
+      addBar('kubernetesHealth','Connected',kube.connected,kube.total,'good');
+      addBar('kubernetesHealth','Warning',kube.warning,kube.total,'warn');
+      addBar('kubernetesHealth','Down / critical',kube.down,kube.total,'bad');
+      addBar('kubernetesHealth','Stale connectivity',kube.staleConnectivity,kube.total,kube.staleConnectivity ? 'warn' : 'good');
+      addBar('kubernetesCoverage','With extensions',kube.withExtensions,kube.total);
+      addBar('kubernetesCoverage','Agent auto-upgrade',kube.autoUpgradeEnabled,kube.total);
+      addBar('kubernetesCoverage','Certificates expiring',kube.expiringCertificates,kube.total,kube.expiringCertificates ? 'bad' : 'good');
+      addDistribution('kubernetesProfile',kube.distributions?.infrastructures,kube.total,5);
+
+      addBar('sqlCoverage','Connected services',sql.connectedTotal,sql.instanceTotal,'good');
+      addBar('sqlCoverage','Defender protected',sql.protectedTotal,sql.instanceTotal);
+      addBar('sqlCoverage','Monitored engines',sql.monitoredTotal,sql.engineTotal);
+      addBar('sqlCoverage','Migration assessed',sql.assessedTotal,sql.engineTotal);
+      addGroupLabel('sqlProfile','Versions');
+      addDistribution('sqlProfile',sql.distributions?.versions,sql.instanceTotal,5);
+      addGroupLabel('sqlProfile','Editions');
+      addDistribution('sqlProfile',sql.distributions?.editions,sql.instanceTotal,4);
+      addGroupLabel('sqlLicensing','License types');
+      addDistribution('sqlLicensing',sql.distributions?.licenses,sql.instanceTotal,5);
+      addGroupLabel('sqlLicensing','Service types');
+      addDistribution('sqlLicensing',sql.distributions?.services,sql.instanceTotal,5);
+      text('sqlNarrative', `${count(sql.connectedTotal)} of ${count(sql.instanceTotal)} SQL services are connected. Defender protection covers ${percent(sql.protectedTotal, sql.instanceTotal)}% of services, monitoring covers ${percent(sql.monitoredTotal, sql.engineTotal)}% of database engines, and migration assessment covers ${percent(sql.assessedTotal, sql.engineTotal)}%. The estate reports ${count(sql.databaseTotal)} databases, ${count(sql.coreTotal)} SQL cores, and ${formatMb(sql.footprintMB)} of database footprint.`);
+      const sqlNote = document.createElement('div');
+      sqlNote.className = 'note';
+      sqlNote.style.marginTop = '12px';
+      sqlNote.textContent = `${count(sql.databaseTotal)} databases | ${count(sql.coreTotal)} SQL cores | ${formatMb(sql.footprintMB)} reported database footprint`;
+      byId('sqlProfile').appendChild(sqlNote);
+
+      text('footer', `Arc Estate Summary | ${data.operations.account.subscription} | Generated ${new Date().toLocaleString()} | Read-only dashboard report`);
+      byId('report').classList.remove('hidden');
+    }
+
+    async function getJson(url) {
+      const response = await fetch(url, { cache:'no-store' });
+      const data = await response.json();
+      if (!response.ok) {
+        const error = new Error(data.error || `Request failed (${response.status})`);
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    }
+
+    function showLoading() {
+      const started = Date.now();
+      clearInterval(loadingTimer);
+      const update = () => text('loadingMessage', `Building leadership, vendor, server, SQL, Kubernetes, agent, platform, and geography summaries... (${Math.floor((Date.now() - started) / 1000)}s)`);
+      update();
+      byId('loading').classList.remove('hidden');
+      loadingTimer = setInterval(update,1000);
+    }
+
+    function hideLoading() {
+      clearInterval(loadingTimer);
+      loadingTimer = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    async function refresh() {
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const button = byId('refresh');
+      button.disabled = true;
+      button.textContent = 'Building Report...';
+      byId('error').classList.add('hidden');
+      showLoading();
+      try {
+        const [operations,sql,kubernetes,global] = await Promise.all([
+          getJson('/api/operations/summary'),
+          getJson('/api/sql/summary'),
+          getJson('/api/kubernetes/summary'),
+          getJson('/api/global/summary?infrastructure=all')
+        ]);
+        renderReport({operations,sql,kubernetes,global});
+      } catch (exception) {
+        if (exception.status === 503) {
+          text('loadingMessage','Initial inventory snapshots are still building. Retrying the report shortly...');
+          setTimeout(refresh,2000);
+          return;
+        }
+        text('error',exception.message);
+        byId('error').classList.remove('hidden');
+      } finally {
+        hideLoading();
+        refreshInProgress = false;
+        button.disabled = false;
+        button.textContent = 'Refresh Report';
+      }
+    }
+
+    async function logout() {
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const response = await fetch('/api/logout',{method:'POST'});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+      if (data.proxySignOutUrl) {
+        window.location.assign(data.proxySignOutUrl);
+        return;
+      }
+      document.body.replaceChildren();
+      const message = document.createElement('main');
+      message.innerHTML = '<h1>Signed out</h1><p>The Azure session was cleared and the dashboard server has stopped.</p>';
+      document.body.appendChild(message);
+    }
+
+    byId('refresh').addEventListener('click',refresh);
+    byId('printReport').addEventListener('click',() => window.print());
+    byId('logout').addEventListener('click',() => logout().catch(exception => {
+      text('error',exception.message);
+      byId('error').classList.remove('hidden');
+    }));
+    refresh();
+  </script>
+</body>
+</html>

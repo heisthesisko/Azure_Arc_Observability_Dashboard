@@ -1,0 +1,11 @@
+apiVersion: v2
+name: arc-dashboard-openshift
+description: Singleton Azure Arc Observability Dashboard deployment for Red Hat OpenShift
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.27.0-0"
+annotations:
+  category: Operations
+  openshift.io/display-name: Azure Arc Observability Dashboard
+  openshift.io/provider-display-name: Microsoft

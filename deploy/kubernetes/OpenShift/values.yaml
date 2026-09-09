@@ -1,0 +1,156 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: registry.example.com/arc-operations-dashboard
+  tag: "1.0.0"
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+oauth2Proxy:
+  image:
+    repository: quay.io/oauth2-proxy/oauth2-proxy
+    tag: "v7.14.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+  existingSecret:
+    name: arc-dashboard-oauth
+    clientSecretKey: client-secret
+    cookieSecretKey: cookie-secret
+  clientId: "00000000-0000-0000-0000-000000000000"
+  scopes:
+    - openid
+    - profile
+    - email
+    - offline_access
+  emailDomains:
+    - "*"
+  cookieExpire: 8h
+  cookieRefresh: 1h
+  extraArgs: []
+
+foundry:
+  enabled: false
+  scopes:
+    - https://ai.azure.com/.default
+
+azureIdentity:
+  tenantId: "00000000-0000-0000-0000-000000000000"
+  clientId: "00000000-0000-0000-0000-000000000000"
+  subscriptionId: "00000000-0000-0000-0000-000000000000"
+  tokenAudience: api://AzureADTokenExchange
+  tokenExpirationSeconds: 3600
+
+dashboard:
+  administratorUsers:
+    - admin@example.com
+  port: 8766
+
+route:
+  enabled: true
+  host: arc-dashboard.apps.example.com
+  annotations:
+    haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains
+    haproxy.router.openshift.io/timeout: 5m
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+    certificate: ""
+    key: ""
+    caCertificate: ""
+
+service:
+  port: 4180
+  annotations: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  retainOnDelete: true
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      network.openshift.io/policy-group: ingress
+  dnsNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: openshift-dns
+  dnsPodSelector:
+    matchLabels:
+      dns.operator.openshift.io/daemonset-dns: default
+  httpsEgressCidrs:
+    - 0.0.0.0/0
+  additionalEgress: []
+
+podAnnotations: {}
+podLabels: {}
+
+resources:
+  dashboard:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  oauth2Proxy:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+probes:
+  dashboard:
+    startup:
+      failureThreshold: 30
+      periodSeconds: 5
+      timeoutSeconds: 5
+    liveness:
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  oauth2Proxy:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+emptyDir:
+  tmpSizeLimit: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

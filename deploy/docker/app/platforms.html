@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc Platform Inventory</title>
+  <style>
+    /* Platform-specific presentation extends the shared dashboard visual language. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --yellow: #f6c344;
+      --orange: #f59e42;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+      --purple: #a48afb;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1100px;
+      background: linear-gradient(180deg, #071019, var(--bg) 260px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    main { width: min(1740px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 44px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    h1 { margin: 0 0 5px; font-size: 28px; font-weight: 650; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    .subtitle, .meta, .empty { color: var(--muted); }
+    .meta { margin-top: 3px; font-size: 12px; }
+    .actions { display: flex; gap: 10px; }
+    .actions > select, .actions > button { width: 170px; height: 40px; }
+    #refreshInterval { width: 230px; min-width: 230px; }
+    .setup-button {
+      display: inline-flex; width: 140px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); text-decoration: none; font: inherit; padding: 9px 12px;
+    }
+    .setup-button:hover { border-color: var(--blue); }
+    nav.tabs { display: flex; width: min(1296px, calc(100vw - 40px)); gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    nav.tabs a {
+      display: inline-flex;
+      width: 156px;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    nav.tabs a:hover { border-color: var(--blue); color: var(--text); }
+    nav.tabs a.active { background: var(--blue); border-color: var(--blue); color: #071019; }
+
+    input, select, button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      padding: 9px 12px;
+    }
+
+    input { width: 285px; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--blue); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+
+    .platform-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .platform-card {
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      border-radius: 7px;
+      background: linear-gradient(155deg, var(--panel-2), var(--panel));
+      text-align: left;
+    }
+    .platform-card .label { color: var(--muted); font-size: 12px; }
+    .platform-card .value { margin-top: 5px; font-size: 24px; font-weight: 700; }
+    .platform-card[data-group="vmware"] { border-top-color: var(--purple); }
+    .platform-card[data-group="azure-local-node"] { border-top-color: var(--cyan); }
+    .platform-card[data-group="azure-local-vm"] { border-top-color: var(--cyan); }
+    .platform-card[data-group="aws"] { border-top-color: var(--orange); }
+    .platform-card[data-group="hyper-v"] { border-top-color: var(--blue); }
+    .platform-card[data-group="azure-vm"] { border-top-color: var(--green); }
+    .platform-card[data-group="physical"] { border-top-color: var(--muted); }
+    .platform-card[data-group="unknown"] { border-top-color: var(--red); }
+
+    .table-panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+
+    .table-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 46px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.015);
+    }
+    .table-title-actions { display: flex; align-items: center; gap: 10px; }
+    #platformFilter { min-width: 210px; height: 34px; padding: 6px 10px; }
+
+    .table-wrap { max-height: 660px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    th, td { padding: 10px 11px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid rgba(41,58,71,.62); }
+    th { position: sticky; top: 0; z-index: 1; background: #16242f; color: #b8c8d3; font-weight: 600; }
+    th[aria-sort] { padding: 0; }
+    th.resizable { position: sticky; }
+    .col-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      user-select: none;
+      touch-action: none;
+      z-index: 2;
+    }
+    .col-resizer:hover, .col-resizer.active { background: rgba(70,164,232,.35); }
+    table.resizing { cursor: col-resize; }
+    table.resizing * { user-select: none; }
+    .sort-button {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 11px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--text); background: rgba(70,164,232,.09); outline: none; }
+    .sort-indicator { width: 10px; color: var(--blue); text-align: center; }
+    tbody tr:hover { background: rgba(70,164,232,.055); }
+    tbody tr:last-child td { border-bottom: 0; }
+
+
+
+    .status-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-weight: 650; background: rgba(146,164,177,.13); color: var(--muted); }
+    .status-badge.connected { background: rgba(49,196,141,.14); color: var(--green); }
+    .status-badge.disconnected { background: rgba(246,195,68,.14); color: var(--yellow); }
+    .status-badge.expired { background: rgba(240,82,82,.14); color: var(--red); }
+
+    .loading {
+      display: flex; align-items: center; gap: 11px; margin-bottom: 16px; padding: 12px 14px;
+      border: 1px solid var(--blue); border-radius: 6px; color: #b9dcf6;
+      background: rgba(70,164,232,.09);
+    }
+    .spinner {
+      width: 16px; height: 16px; flex: 0 0 auto; border: 2px solid rgba(70,164,232,.28);
+      border-top-color: var(--blue); border-radius: 50%; animation: spin .9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .hidden { display: none; }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+    .pager button { padding: 6px 12px; }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Navigation and local inventory controls. -->
+    <header>
+      <div>
+        <h1>Arc Platform Inventory</h1>
+        <div class="subtitle" id="account">Loading Azure operations data...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html" class="active">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout">Logout</button>
+      </div>
+    </header>
+
+    <div id="error" class="error hidden"></div>
+    <div id="loading" class="loading hidden" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span><span id="loadingMessage"></span>
+    </div>
+
+    <!-- Cards are generated from the platform classifications returned by the Operations API. -->
+    <div class="platform-cards" id="platformCards"></div>
+
+    <!-- Detailed platform inventory with sortable and user-resizable columns. -->
+    <div class="table-panel">
+      <div class="table-title">
+        <h2>Arc inventory by platform</h2>
+        <div class="table-title-actions">
+          <select id="platformFilter"><option value="">All platforms</option></select>
+          <span class="meta" id="shown"></span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="platformHeaders"><tr>
+            <th class="resizable" aria-sort="ascending"><button class="sort-button" data-sort-key="platform">Platform<span class="sort-indicator">▲</span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="name">Node<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="osSku">Operating system<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="infraManufacturer">Manufacturer<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="infraModel">Model<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="hypervisorType">Hypervisor<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="arcStatus">Arc status<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="resourceGroup">Data center location<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+            <th class="resizable" aria-sort="none"><button class="sort-button" data-sort-key="location">Location<span class="sort-indicator"></span></button><span class="col-resizer"></span></th>
+          </tr></thead>
+          <tbody id="platformRows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="platformPrev" type="button">◀ Previous</button>
+        <span class="meta" id="platformRange"></span>
+        <button id="platformNext" type="button">Next ▶</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // platformFilter is controlled by the inventory dropdown; cards remain fleet-wide summaries
+    // computed server-side. The table below only ever holds one bounded page (default 100 rows).
+    const PAGE_SIZE = 100;
+    const state = {
+      servers: [], platformFilter: '', sortKey: 'platform', sortDirection: 'ascending',
+      cursor: '', nextCursor: '', previousCursors: [], total: 0, hasNext: false
+    };
+    let refreshTimer = null;
+    let loadingTimer = null;
+    let refreshInProgress = false;
+    let hasLoaded = false;
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+
+    function statusClass(status) {
+      return String(status || '').toLowerCase().replace(/[^a-z]/g, '');
+    }
+
+    function addCell(row, value, className = '') {
+      const cell = document.createElement('td');
+      cell.textContent = value ?? '-';
+      if (className) cell.className = className;
+      row.appendChild(cell);
+    }
+
+    function renderPlatformCards(summary) {
+      const container = byId('platformCards');
+      container.replaceChildren();
+
+      const all = document.createElement('div');
+      all.className = 'platform-card';
+      all.innerHTML = `<div class="label">All platforms</div><div class="value">${summary.total.toLocaleString()}</div>`;
+      container.appendChild(all);
+
+      const platforms = [...(summary.platforms || [])].sort((left, right) => right.count - left.count);
+      for (const entry of platforms) {
+        const card = document.createElement('div');
+        card.className = 'platform-card';
+        card.dataset.group = entry.platformGroup;
+        card.innerHTML = `<div class="label">${entry.platform}</div><div class="value">${entry.count.toLocaleString()}</div>`;
+        container.appendChild(card);
+      }
+
+      const filter = byId('platformFilter');
+      const selected = filter.value || state.platformFilter;
+      filter.replaceChildren(new Option('All platforms', ''));
+      for (const entry of [...platforms].sort((left, right) => left.platform.localeCompare(right.platform))) {
+        filter.add(new Option(`${entry.platform} (${entry.count.toLocaleString()})`, entry.platformGroup));
+      }
+      if ([...filter.options].some(option => option.value === selected)) filter.value = selected;
+      state.platformFilter = filter.value;
+    }
+
+    function updateSortHeaders() {
+      document.querySelectorAll('#platformHeaders th').forEach(header => {
+        const button = header.querySelector('.sort-button');
+        const selected = button.dataset.sortKey === state.sortKey;
+        header.setAttribute('aria-sort', selected ? state.sortDirection : 'none');
+        button.querySelector('.sort-indicator').textContent = selected
+          ? (state.sortDirection === 'ascending' ? '▲' : '▼')
+          : '';
+      });
+    }
+
+    function setSort(key) {
+      if (state.sortKey === key) {
+        state.sortDirection = state.sortDirection === 'ascending' ? 'descending' : 'ascending';
+      } else {
+        state.sortKey = key;
+        state.sortDirection = 'ascending';
+      }
+      updateSortHeaders();
+      resetPaging();
+      loadServerPage().catch(reportError);
+    }
+
+    function resetPaging() {
+      state.cursor = '';
+      state.previousCursors = [];
+    }
+
+    function renderTable() {
+      text('platformRange', state.total
+        ? `${state.previousCursors.length * PAGE_SIZE + 1}-${state.previousCursors.length * PAGE_SIZE + state.servers.length} of ${state.total.toLocaleString()} nodes`
+        : '0 of 0 nodes');
+      text('shown', `${state.total.toLocaleString()} nodes match the current platform filter`);
+      byId('platformPrev').disabled = state.previousCursors.length === 0;
+      byId('platformNext').disabled = !state.hasNext;
+
+      const body = byId('platformRows');
+      body.replaceChildren();
+
+      if (!state.servers.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 9;
+        cell.className = 'empty';
+        cell.textContent = 'No servers match the current filters';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+
+      for (const server of state.servers) {
+        const row = document.createElement('tr');
+        addCell(row, server.platform || 'Unknown');
+        addCell(row, server.name);
+        addCell(row, server.osSku || server.osName);
+        addCell(row, server.infraManufacturer);
+        addCell(row, server.infraModel);
+        addCell(row, server.hypervisorType);
+
+        const statusCell = document.createElement('td');
+        const statusBadge = document.createElement('span');
+        statusBadge.className = `status-badge ${statusClass(server.arcStatus)}`;
+        statusBadge.textContent = server.arcStatus || 'Unknown';
+        statusCell.appendChild(statusBadge);
+        row.appendChild(statusCell);
+
+        addCell(row, server.resourceGroup);
+        addCell(row, server.location);
+        body.appendChild(row);
+      }
+    }
+
+    function buildServerQuery(cursor) {
+      const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), sort: state.sortKey, direction: state.sortDirection });
+      if (state.platformFilter) params.set('platformGroup', state.platformFilter);
+      if (cursor) params.set('cursor', cursor);
+      return params.toString();
+    }
+
+    async function loadServerPage(cursor = '') {
+      const response = await fetch(`/api/operations/servers?${buildServerQuery(cursor)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (response.status === 409 && data.error && data.error.startsWith('cursor_')) {
+        resetPaging();
+        return loadServerPage('');
+      }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      state.servers = data.servers || [];
+      state.total = data.page.total;
+      state.hasNext = data.page.hasNext;
+      state.nextCursor = data.page.nextCursor;
+      renderTable();
+      return data;
+    }
+
+    async function goToNextPage() {
+      if (!state.hasNext || !state.nextCursor) return;
+      state.previousCursors.push(state.cursor);
+      state.cursor = state.nextCursor;
+      await loadServerPage(state.cursor);
+    }
+
+    async function goToPreviousPage() {
+      if (!state.previousCursors.length) return;
+      state.cursor = state.previousCursors.pop();
+      await loadServerPage(state.cursor);
+    }
+
+    function reportError(exception) {
+      byId('error').textContent = exception.message;
+      byId('error').classList.remove('hidden');
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refresh, interval);
+    }
+
+    function showLoading(initialLoad) {
+      const startedAt = Date.now();
+      const updateMessage = () => {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        text('loadingMessage', initialLoad
+          ? `Loading cloud and hypervisor classifications for up to 50,000 servers. The first load can take a minute or more. Keep this page open. (${elapsed}s)`
+          : `Refreshing cloud and hypervisor inventory... (${elapsed}s)`);
+      };
+      updateMessage();
+      byId('loading').classList.remove('hidden');
+      loadingTimer = setInterval(updateMessage, 1000);
+    }
+
+    function hideLoading() {
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    async function refresh() {
+      // Platform cards and the inventory table are both sourced from bounded, aggregated APIs
+      // built on top of the same Operations snapshot -- never the full 50,000-server inventory.
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const button = byId('refresh');
+      const error = byId('error');
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      error.classList.add('hidden');
+      showLoading(!hasLoaded);
+
+      try {
+        const summaryResponse = await fetch('/api/platforms/summary', { cache: 'no-store' });
+        const summaryData = await summaryResponse.json();
+        if (!summaryResponse.ok) {
+          if (summaryResponse.status === 503) { setTimeout(refresh, 2000); return; }
+          throw new Error(summaryData.error || `Request failed (${summaryResponse.status})`);
+        }
+        hasLoaded = true;
+        text('account', `${summaryData.account.subscription} | ${summaryData.account.user}`);
+        text('updated', `Updated ${new Date(summaryData.generatedAt).toLocaleString()} | Azure Resource Graph inventory`);
+        renderPlatformCards(summaryData);
+        resetPaging();
+        await loadServerPage('');
+      } catch (exception) {
+        reportError(exception);
+      } finally {
+        hideLoading();
+        refreshInProgress = false;
+        button.disabled = false;
+        button.textContent = 'Refresh Now';
+      }
+    }
+
+    async function logout() {
+      // Replace the page after logout because the HTTP listener exits immediately afterward.
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+        if (data.proxySignOutUrl) {
+          window.location.assign(data.proxySignOutUrl);
+          return;
+        }
+        clearInterval(refreshTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+        button.disabled = false;
+      }
+    }
+
+    function initColumnResizing() {
+      // Pointer movement changes explicit header widths while fixed table layout keeps columns aligned.
+      const table = document.querySelector('.table-panel table');
+      const headers = [...document.querySelectorAll('#platformHeaders th.resizable')];
+      const minWidth = 60;
+      let active = null;
+
+      headers.forEach(header => { header.style.width = `${header.getBoundingClientRect().width}px`; });
+
+      headers.forEach(header => {
+        const resizer = header.querySelector('.col-resizer');
+        resizer.addEventListener('mousedown', event => {
+          event.preventDefault();
+          active = { header, startX: event.clientX, startWidth: header.getBoundingClientRect().width };
+          resizer.classList.add('active');
+          table.classList.add('resizing');
+        });
+      });
+
+      document.addEventListener('mousemove', event => {
+        if (!active) return;
+        const delta = event.clientX - active.startX;
+        const width = Math.max(minWidth, active.startWidth + delta);
+        active.header.style.width = `${width}px`;
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!active) return;
+        document.querySelectorAll('.col-resizer.active').forEach(el => el.classList.remove('active'));
+        table.classList.remove('resizing');
+        active = null;
+      });
+    }
+
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    byId('platformFilter').addEventListener('change', event => {
+      state.platformFilter = event.target.value;
+      resetPaging();
+      loadServerPage().catch(reportError);
+    });
+    byId('platformPrev').addEventListener('click', goToPreviousPage);
+    byId('platformNext').addEventListener('click', goToNextPage);
+    document.querySelectorAll('#platformHeaders .sort-button').forEach(button => {
+      button.addEventListener('click', () => setSort(button.dataset.sortKey));
+    });
+    initColumnResizing();
+    configureRefreshInterval();
+    refresh();
+  </script>
+</body>
+</html>

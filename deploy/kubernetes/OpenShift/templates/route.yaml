@@ -1,0 +1,36 @@
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "arc-dashboard.fullname" . }}
+  labels:
+    {{- include "arc-dashboard.labels" . | nindent 4 }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  host: {{ .Values.route.host | quote }}
+  to:
+    kind: Service
+    name: {{ include "arc-dashboard.fullname" . }}
+    weight: 100
+  port:
+    targetPort: proxy
+  tls:
+    termination: {{ .Values.route.tls.termination }}
+    insecureEdgeTerminationPolicy: {{ .Values.route.tls.insecureEdgeTerminationPolicy }}
+    {{- with .Values.route.tls.certificate }}
+    certificate: |-
+      {{- . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.route.tls.key }}
+    key: |-
+      {{- . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.route.tls.caCertificate }}
+    caCertificate: |-
+      {{- . | nindent 6 }}
+    {{- end }}
+  wildcardPolicy: None
+{{- end }}

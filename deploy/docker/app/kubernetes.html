@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc-enabled Kubernetes</title>
+  <style>
+    /* Arc-enabled Kubernetes estate presentation: shared dashboard primitives plus a
+       distribution/coverage summary and a filterable, sortable, paginated cluster inventory
+       with an on-demand cluster/extension/agent-error detail drill-down. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --yellow: #f6c344;
+      --orange: #f59e42;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+      --purple: #a48afb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1150px;
+      background: linear-gradient(180deg, #071019, var(--bg) 260px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    main { width: min(1740px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 44px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    h1 { margin: 0 0 5px; font-size: 28px; font-weight: 650; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    h3 { margin: 0 0 4px; font-size: 14px; }
+    .subtitle, .meta, .empty { color: var(--muted); }
+    .meta { margin-top: 3px; font-size: 12px; }
+    .actions { display: flex; width: 740px; justify-content: flex-end; gap: 10px; }
+    .actions > select, .actions > button { width: 170px; height: 40px; }
+    #refreshInterval { width: 230px; min-width: 230px; }
+    .setup-button {
+      display: inline-flex; width: 140px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); text-decoration: none; font: inherit; padding: 9px 12px;
+    }
+    .setup-button:hover { border-color: var(--cyan); }
+    nav.tabs { display: flex; width: min(1296px, calc(100vw - 40px)); gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    nav.tabs a {
+      display: inline-flex; width: 156px; min-height: 36px; align-items: center; justify-content: center;
+      padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+      color: var(--muted); text-decoration: none; text-align: center; font-size: 13px; font-weight: 600;
+    }
+    nav.tabs a:hover { border-color: var(--blue); color: var(--text); }
+    nav.tabs a.active { background: var(--blue); border-color: var(--blue); color: #071019; }
+    input, select, button {
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); font: inherit; padding: 9px 12px;
+    }
+    input { width: 270px; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--cyan); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+    .cards { display: grid; grid-template-columns: repeat(11, minmax(110px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .card {
+      padding: 14px 15px; border: 1px solid var(--line); border-top: 3px solid var(--cyan);
+      border-radius: 7px; background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    }
+    .card.good { border-top-color: var(--green); }
+    .card.warn { border-top-color: var(--yellow); }
+    .card.bad { border-top-color: var(--red); }
+    .card.purple { border-top-color: var(--purple); }
+    .card .label { color: var(--muted); font-size: 12px; }
+    .card .value { margin-top: 5px; font-size: 22px; font-weight: 700; }
+    .value-story { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .story {
+      padding: 15px; border: 1px solid var(--line); border-radius: 7px;
+      background: linear-gradient(145deg, rgba(65,199,217,.08), var(--panel));
+    }
+    .story-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .story-value { color: var(--cyan); font-size: 20px; font-weight: 700; }
+    .story p { min-height: 34px; margin: 7px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .progress { height: 7px; overflow: hidden; border-radius: 8px; background: #263844; }
+    .progress span { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
+    .progress span.good { background: var(--green); }
+    .progress span.warn { background: var(--yellow); }
+    .progress span.bad { background: var(--red); }
+    .panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+    .panel, .table-panel, .detail-panel {
+      overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    }
+    .panel-title, .table-title, .detail-title {
+      display: flex; justify-content: space-between; align-items: center; min-height: 46px;
+      padding: 12px 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.015);
+    }
+    .table-title { flex-wrap: wrap; row-gap: 8px; }
+    .table-title-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .table-title-actions input { width: 210px; height: 34px; padding: 6px 10px; }
+    .table-title-actions select { width: 148px; height: 34px; padding: 6px 10px; }
+    .table-title-actions .meta { min-width: 120px; text-align: right; }
+    .detail-actions { display: flex; align-items: center; gap: 12px; }
+    .collapse-button { padding: 6px 10px; color: var(--muted); font-size: 12px; }
+    .rank-list { list-style: none; margin: 0; padding: 4px 0; min-height: 170px; }
+    .rank-list li {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px;
+      padding: 8px 14px; border-bottom: 1px solid rgba(41,58,71,.55);
+    }
+    .rank-list li:last-child { border: 0; }
+    .rank-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-value { font-weight: 650; font-variant-numeric: tabular-nums; }
+    .detail-panel { margin-bottom: 18px; border-color: rgba(65,199,217,.55); }
+    .detail-content { display: grid; grid-template-columns: 390px minmax(0, 1fr); }
+    .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; align-content: start; background: var(--line); border-right: 1px solid var(--line); }
+    .fact { min-height: 64px; padding: 11px 13px; background: var(--panel); }
+    .fact .label { color: var(--muted); font-size: 11px; }
+    .fact .value { margin-top: 4px; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+    .table-wrap { max-height: 560px; overflow: auto; }
+    .detail-content .table-wrap { max-height: 325px; }
+    .agent-errors { border-top: 1px solid var(--line); }
+    .agent-error-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px 14px 14px; }
+    .agent-error {
+      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px;
+      padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2);
+    }
+    .agent-error .description { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 11px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(41,58,71,.62); }
+    th { position: sticky; top: 0; z-index: 1; background: #16242f; color: #b8c8d3; font-weight: 600; }
+    th[aria-sort] { padding: 0; }
+    .sort-button {
+      display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 11px; border: 0; border-radius: 0; background: transparent;
+      color: inherit; font-size: 12px; font-weight: 600; text-align: left;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--text); background: rgba(65,199,217,.09); outline: none; }
+    .sort-indicator { width: 10px; color: var(--cyan); text-align: center; }
+    tbody tr:hover { background: rgba(70,164,232,.055); }
+    tbody tr.clickable { cursor: pointer; }
+    tbody tr.clickable:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+    tbody tr.selected { background: rgba(70,164,232,.1); }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-weight: 650; background: rgba(146,164,177,.13); color: var(--muted); }
+    .badge.up, .badge.good, .badge.connected, .badge.enabled, .badge.succeeded { background: rgba(49,196,141,.14); color: var(--green); }
+    .badge.warning, .badge.warn, .badge.unknown, .badge.connecting, .badge.registering, .badge.updating { background: rgba(246,195,68,.14); color: var(--yellow); }
+    .badge.down, .badge.critical, .badge.disconnected, .badge.expired, .badge.failed, .badge.disabled { background: rgba(240,82,82,.14); color: var(--red); }
+    .badge.azure { background: rgba(65,199,217,.14); color: var(--cyan); }
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      color: #b9dcf6;
+      background: rgba(70,164,232,.09);
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border: 2px solid rgba(70,164,232,.28);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .hidden { display: none; }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+    .pager button { padding: 6px 12px; }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Navigation and Kubernetes-specific filters. -->
+    <header>
+      <div>
+        <h1>Arc-enabled Kubernetes</h1>
+        <div class="subtitle" id="account">Loading Kubernetes estate data...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html" class="active">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout">Logout</button>
+      </div>
+    </header>
+
+    <div id="error" class="error hidden"></div>
+    <div id="loading" class="loading hidden"><span class="spinner" aria-hidden="true"></span><span id="loadingMessage"></span></div>
+
+    <!-- Consolidated fleet totals, including compute/version/coverage indicators. -->
+    <div class="cards">
+      <div class="card"><div class="label">Clusters</div><div class="value" id="totalCard">-</div></div>
+      <div class="card good"><div class="label">Connected</div><div class="value" id="connectedCard">-</div></div>
+      <div class="card warn"><div class="label">Warning</div><div class="value" id="warningCard">-</div></div>
+      <div class="card bad"><div class="label">Down / critical</div><div class="value" id="downCard">-</div></div>
+      <div class="card purple"><div class="label">Nodes</div><div class="value" id="nodesCard">-</div></div>
+      <div class="card purple"><div class="label">Cores</div><div class="value" id="coresCard">-</div></div>
+      <div class="card"><div class="label">Kubernetes versions</div><div class="value" id="versionsCard">-</div></div>
+      <div class="card good"><div class="label">Extension coverage</div><div class="value" id="extensionCard">-</div></div>
+      <div class="card warn"><div class="label">Stale connectivity</div><div class="value" id="staleCard">-</div></div>
+      <div class="card warn"><div class="label">Expiring identity certs</div><div class="value" id="expiringCard">-</div></div>
+      <div class="card good"><div class="label">Auto-upgrade enabled</div><div class="value" id="autoUpgradeCard">-</div></div>
+    </div>
+
+    <!-- Coverage indicators translate raw counts into fleet-wide operational posture. -->
+    <div class="value-story">
+      <div class="story"><div class="story-head"><h3>Extension coverage</h3><span class="story-value" id="extensionValue">-</span></div><p>Clusters with at least one Microsoft.KubernetesConfiguration extension installed.</p><div class="progress"><span class="good" id="extensionBar"></span></div></div>
+      <div class="story"><div class="story-head"><h3>Auto-upgrade enabled</h3><span class="story-value" id="autoUpgradeValue">-</span></div><p>Clusters with the Arc agent auto-upgrade profile enabled.</p><div class="progress"><span class="good" id="autoUpgradeBar"></span></div></div>
+      <div class="story"><div class="story-head"><h3>Stale connectivity</h3><span class="story-value" id="staleValue">-</span></div><p>Connected clusters whose last heartbeat is aging beyond 15 minutes.</p><div class="progress"><span class="warn" id="staleBar"></span></div></div>
+      <div class="story"><div class="story-head"><h3>Certificate expiry risk</h3><span class="story-value" id="expiringValue">-</span></div><p>Clusters with a managed identity certificate expiring within 30 days.</p><div class="progress"><span class="warn" id="expiringBar"></span></div></div>
+    </div>
+
+    <!-- Version, distribution, and infrastructure composition across the fleet. -->
+    <div class="panels">
+      <div class="panel"><div class="panel-title"><h2>Kubernetes versions</h2></div><ol class="rank-list" id="versions"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>Distributions</h2></div><ol class="rank-list" id="distributionsList"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>Infrastructures</h2></div><ol class="rank-list" id="infrastructuresList"></ol></div>
+    </div>
+
+    <!-- Row selection expands this cluster, extension, and Arc agent error drill-down. -->
+    <section class="detail-panel hidden" id="detailPanel">
+      <div class="detail-title">
+        <div><h2 id="detailName">Cluster detail</h2><div class="meta" id="detailLocation"></div></div>
+        <div class="detail-actions"><span class="meta" id="detailExtensionSummary"></span><button class="collapse-button" id="collapseDetail" type="button">Collapse details ▲</button></div>
+      </div>
+      <div class="detail-content">
+        <div class="facts" id="facts"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Extension</th><th>Type</th><th>Version</th><th>State</th><th>Auto-upgrade</th></tr></thead>
+            <tbody id="extensionRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="agent-errors">
+        <div class="detail-title"><h2>Arc agent errors</h2><span class="meta" id="agentErrorSummary"></span></div>
+        <div class="agent-error-list" id="agentErrorList"></div>
+      </div>
+    </section>
+
+    <!-- Sortable master inventory; each row can populate the detail panel above. -->
+    <div class="table-panel">
+      <div class="table-title">
+        <h2>Cluster inventory</h2>
+        <div class="table-title-actions">
+          <input id="search" type="search" placeholder="Search name, RG, location, distro">
+          <select id="resourceGroupFilter"><option value="">All resource groups</option></select>
+          <select id="locationFilter"><option value="">All locations</option></select>
+          <select id="healthFilter">
+            <option value="">All health</option>
+            <option value="up">Up</option>
+            <option value="warning">Warning</option>
+            <option value="down">Down</option>
+            <option value="critical">Critical</option>
+            <option value="unknown">Unknown</option>
+          </select>
+          <select id="connectivityFilter"><option value="">All connectivity</option></select>
+          <select id="distributionFilter"><option value="">All distributions</option></select>
+          <select id="infrastructureFilter"><option value="">All infrastructures</option></select>
+          <span class="meta" id="shown"></span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="clusterHeaders"><tr>
+            <th aria-sort="ascending"><button class="sort-button" data-sort-key="name">Name<span class="sort-indicator">▲</span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="resourceGroup">Resource group<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="location">Location<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="health">Health<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="connectivityStatus">Connectivity<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="kubernetesVersion">Version<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="distribution">Distribution<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="infrastructure">Infrastructure<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="totalNodeCount">Nodes<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="totalCoreCount">Cores<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="extensionCount">Extensions<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="agentAutoUpgrade">Auto-upgrade<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="lastConnectivityTime">Last contact<span class="sort-indicator"></span></button></th>
+          </tr></thead>
+          <tbody id="clusterRows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="clusterPrev" type="button">◀ Previous</button>
+        <span class="meta" id="clusterRange"></span>
+        <button id="clusterNext" type="button">Next ▶</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // The summary API supplies fleet-wide totals/coverage/distributions; a separate paginated
+    // API supplies one bounded page (default/max 100 rows) of the cluster inventory; extension
+    // inventory and Arc agent errors are fetched only for a single selected cluster on demand.
+    // No page ever downloads the full cluster inventory.
+    const PAGE_SIZE = 100;
+    const state = {
+      clusters: [], selectedKey: null, sortKey: 'name', sortDirection: 'ascending',
+      search: '', resourceGroupFilter: '', locationFilter: '', healthFilter: '',
+      connectivityFilter: '', distributionFilter: '', infrastructureFilter: '',
+      cursor: '', nextCursor: '', previousCursors: [], total: 0, hasNext: false
+    };
+    let refreshInProgress = false;
+    let loadingTimer = null;
+    let refreshTimer = null;
+    let searchDebounceTimer = null;
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+    const value = input => input === null || input === undefined || input === '' ? null : input;
+    const normalized = input => String(input || '').toLowerCase();
+    const percent = (part, total) => total ? Math.round(part * 100 / total) : 0;
+
+    function formatNumber(amount) {
+      return Number(amount || 0).toLocaleString();
+    }
+
+    function formatDate(date) {
+      return date ? new Date(date).toLocaleString() : '-';
+    }
+
+    function badge(content, className = '') {
+      const span = document.createElement('span');
+      span.className = `badge ${className || normalized(content).replace(/[^a-z0-9]/g, '')}`;
+      span.textContent = value(content) ?? 'Unknown';
+      return span;
+    }
+
+    function addCell(row, content) {
+      const cell = document.createElement('td');
+      cell.textContent = value(content) ?? '-';
+      row.appendChild(cell);
+      return cell;
+    }
+
+    function renderDistributionList(id, entries) {
+      const list = byId(id);
+      list.replaceChildren();
+      for (const entry of entries || []) {
+        const item = document.createElement('li');
+        const label = document.createElement('span');
+        label.className = 'rank-name';
+        label.textContent = entry.name;
+        const total = document.createElement('span');
+        total.className = 'rank-value';
+        total.textContent = entry.count;
+        item.append(label, total);
+        list.appendChild(item);
+      }
+      if (!(entries || []).length) {
+        const empty = document.createElement('li');
+        const label = document.createElement('span');
+        label.className = 'rank-name empty';
+        label.textContent = 'No data for the current fleet.';
+        empty.appendChild(label);
+        list.appendChild(empty);
+      }
+    }
+
+    function setCoverage(prefix, part, total, invert = false) {
+      const result = percent(part, total);
+      text(`${prefix}Value`, `${result}%`);
+      const bar = byId(`${prefix}Bar`);
+      bar.style.width = `${result}%`;
+      bar.classList.remove('good', 'warn', 'bad');
+      if (invert) {
+        bar.classList.add(result === 0 ? 'good' : result < 10 ? 'warn' : 'bad');
+      } else {
+        bar.classList.add(result >= 90 ? 'good' : result >= 60 ? 'warn' : 'bad');
+      }
+    }
+
+    function renderSummary(summary) {
+      // Every card, coverage bar, and distribution list below is computed once server-side
+      // across the complete Kubernetes fleet -- the browser only ever renders the aggregate.
+      text('totalCard', formatNumber(summary.total));
+      text('connectedCard', formatNumber(summary.connected));
+      text('warningCard', formatNumber(summary.warning));
+      text('downCard', formatNumber(summary.down));
+      text('nodesCard', formatNumber(summary.totalNodes));
+      text('coresCard', formatNumber(summary.totalCores));
+      text('versionsCard', formatNumber(summary.versionCount));
+      text('extensionCard', `${percent(summary.withExtensions, summary.total)}%`);
+      text('staleCard', formatNumber(summary.staleConnectivity));
+      text('expiringCard', formatNumber(summary.expiringCertificates));
+      text('autoUpgradeCard', `${percent(summary.autoUpgradeEnabled, summary.total)}%`);
+      setCoverage('extension', summary.withExtensions, summary.total);
+      setCoverage('autoUpgrade', summary.autoUpgradeEnabled, summary.total);
+      setCoverage('stale', summary.staleConnectivity, summary.total, true);
+      setCoverage('expiring', summary.expiringCertificates, summary.total, true);
+      renderDistributionList('versions', summary.distributions?.versions);
+      renderDistributionList('distributionsList', summary.distributions?.distributions);
+      renderDistributionList('infrastructuresList', summary.distributions?.infrastructures);
+    }
+
+    function configureSelect(id, allLabel, values, selected) {
+      const select = byId(id);
+      select.replaceChildren(new Option(allLabel, ''));
+      for (const item of values || []) select.add(new Option(item, item));
+      if ((values || []).includes(selected)) select.value = selected;
+      return select.value;
+    }
+
+    function configureFilters(facets) {
+      state.resourceGroupFilter = configureSelect('resourceGroupFilter', 'All resource groups', facets?.resourceGroups, state.resourceGroupFilter);
+      state.locationFilter = configureSelect('locationFilter', 'All locations', facets?.locations, state.locationFilter);
+      // Connectivity values come directly from Azure rather than a fixed list this dashboard
+      // owns, so the dropdown is populated from the fleet's real, observed distinct values.
+      state.connectivityFilter = configureSelect('connectivityFilter', 'All connectivity', facets?.connectivityStatuses, state.connectivityFilter);
+      state.distributionFilter = configureSelect('distributionFilter', 'All distributions', facets?.distributions, state.distributionFilter);
+      state.infrastructureFilter = configureSelect('infrastructureFilter', 'All infrastructures', facets?.infrastructures, state.infrastructureFilter);
+    }
+
+    function updateSortHeaders() {
+      document.querySelectorAll('#clusterHeaders th').forEach(header => {
+        const button = header.querySelector('.sort-button');
+        const active = button.dataset.sortKey === state.sortKey;
+        header.setAttribute('aria-sort', active ? state.sortDirection : 'none');
+        button.querySelector('.sort-indicator').textContent = active ? (state.sortDirection === 'ascending' ? '▲' : '▼') : '';
+      });
+    }
+
+    function setSort(key) {
+      const descendingByDefault = ['totalNodeCount', 'totalCoreCount', 'extensionCount', 'agentAutoUpgrade', 'lastConnectivityTime'];
+      if (state.sortKey === key) {
+        state.sortDirection = state.sortDirection === 'ascending' ? 'descending' : 'ascending';
+      } else {
+        state.sortKey = key;
+        state.sortDirection = descendingByDefault.includes(key) ? 'descending' : 'ascending';
+      }
+      updateSortHeaders();
+      resetPaging();
+      loadClusterPage().catch(reportError);
+    }
+
+    function resetPaging() {
+      state.cursor = '';
+      state.previousCursors = [];
+    }
+
+    function renderTable() {
+      const rangeText = state.total
+        ? `${state.previousCursors.length * PAGE_SIZE + 1}-${state.previousCursors.length * PAGE_SIZE + state.clusters.length} of ${state.total.toLocaleString()}`
+        : '0 of 0';
+      text('shown', state.total ? `${rangeText} clusters | Select a row for details` : '0 of 0 clusters');
+      text('clusterRange', rangeText);
+      byId('clusterPrev').disabled = state.previousCursors.length === 0;
+      byId('clusterNext').disabled = !state.hasNext;
+
+      const rows = byId('clusterRows');
+      rows.replaceChildren();
+      if (!state.clusters.length) {
+        const row = document.createElement('tr');
+        const cell = addCell(row, 'No clusters match the current filters.');
+        cell.colSpan = 13;
+        cell.className = 'empty';
+        rows.appendChild(row);
+        return;
+      }
+      for (const cluster of state.clusters) {
+        const row = document.createElement('tr');
+        row.className = `clickable${state.selectedKey === cluster.key ? ' selected' : ''}`;
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `View cluster details for ${cluster.name}`);
+        addCell(row, cluster.name);
+        addCell(row, cluster.resourceGroup);
+        addCell(row, cluster.location);
+        const healthCell = document.createElement('td');
+        healthCell.appendChild(badge(cluster.health));
+        row.appendChild(healthCell);
+        const connectivityCell = document.createElement('td');
+        connectivityCell.appendChild(badge(cluster.connectivityStatus));
+        row.appendChild(connectivityCell);
+        addCell(row, cluster.kubernetesVersion);
+        addCell(row, cluster.distribution);
+        addCell(row, cluster.infrastructure);
+        addCell(row, cluster.totalNodeCount);
+        addCell(row, cluster.totalCoreCount);
+        addCell(row, cluster.extensionCount);
+        const autoUpgradeCell = document.createElement('td');
+        const autoUpgradeEnabled = normalized(cluster.agentAutoUpgrade) === 'enabled';
+        autoUpgradeCell.appendChild(badge(autoUpgradeEnabled ? 'Enabled' : (cluster.agentAutoUpgrade || 'Disabled'), autoUpgradeEnabled ? 'good' : 'warn'));
+        row.appendChild(autoUpgradeCell);
+        addCell(row, formatDate(cluster.lastConnectivityTime));
+        const activate = () => selectCluster(cluster.key);
+        row.addEventListener('click', activate);
+        row.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            activate();
+          }
+        });
+        rows.appendChild(row);
+      }
+    }
+
+    function addFact(label, content) {
+      const fact = document.createElement('div');
+      fact.className = 'fact';
+      const labelElement = document.createElement('div');
+      labelElement.className = 'label';
+      labelElement.textContent = label;
+      const valueElement = document.createElement('div');
+      valueElement.className = 'value';
+      valueElement.textContent = value(content) ?? '-';
+      fact.append(labelElement, valueElement);
+      byId('facts').appendChild(fact);
+    }
+
+    function describeAgentError(item) {
+      // Arc agent error shapes are not fixed by this dashboard (they come directly from
+      // Azure), so every field is read defensively and rendered with textContent only --
+      // never innerHTML -- regardless of exactly which properties a given error carries.
+      if (item === null || typeof item !== 'object') return { title: String(item ?? 'Unknown error'), description: '' };
+      const title = item.message || item.Message || item.code || item.Code || 'Agent error';
+      const parts = [];
+      if (item.code || item.Code) parts.push(`Code: ${item.code || item.Code}`);
+      if (item.severity || item.Severity) parts.push(`Severity: ${item.severity || item.Severity}`);
+      if (item.time || item.Time || item.timestamp) parts.push(`Reported: ${formatDate(item.time || item.Time || item.timestamp)}`);
+      if (!parts.length) {
+        for (const [key, val] of Object.entries(item)) {
+          if (val !== null && val !== undefined && String(val) !== title) parts.push(`${key}: ${val}`);
+        }
+      }
+      return { title: String(title), description: parts.join(' | ') };
+    }
+
+    async function selectCluster(key) {
+      // Extension inventory and Arc agent errors for the selected cluster are fetched only
+      // when a row is actually opened, keeping the bounded list page response small.
+      state.selectedKey = key;
+      try {
+        const response = await fetch(`/api/kubernetes/clusters/${key}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        const cluster = data.cluster;
+        const extensions = cluster.extensions || [];
+        const agentErrors = cluster.agentErrors || [];
+
+        byId('detailPanel').classList.remove('hidden');
+        text('detailName', cluster.name);
+        text('detailLocation', `${cluster.resourceGroup || 'Unknown resource group'} | ${cluster.location || 'Unknown location'}`);
+        text('detailExtensionSummary', `${extensions.length} extensions | ${agentErrors.length} agent errors`);
+        byId('facts').replaceChildren();
+        addFact('Connectivity status', cluster.connectivityStatus);
+        addFact('Provisioning state', cluster.provisioningState);
+        addFact('Health', cluster.health);
+        addFact('Kubernetes version', cluster.kubernetesVersion);
+        addFact('Distribution', cluster.distribution);
+        addFact('Infrastructure', cluster.infrastructure);
+        addFact('Agent version', cluster.agentVersion);
+        addFact('Desired agent version', cluster.desiredAgentVersion);
+        addFact('Agent auto-upgrade', cluster.agentAutoUpgrade);
+        addFact('Total nodes', cluster.totalNodeCount);
+        addFact('Total cores', cluster.totalCoreCount);
+        addFact('Offering', cluster.offering);
+        addFact('Private link state', cluster.privateLinkState);
+        addFact('Azure RBAC enabled', cluster.azureRbacEnabled ? 'Yes' : 'No');
+        addFact('OIDC issuer enabled', cluster.oidcEnabled ? 'Yes' : 'No');
+        addFact('Workload identity enabled', cluster.workloadIdentityEnabled ? 'Yes' : 'No');
+        addFact('Azure Hybrid Benefit', cluster.azureHybridBenefit);
+        addFact('Last connectivity', formatDate(cluster.lastConnectivityTime));
+        addFact('Identity certificate expiration', formatDate(cluster.identityCertificateExpiration));
+        addFact('Extension count', cluster.extensionCount);
+
+        const rows = byId('extensionRows');
+        rows.replaceChildren();
+        if (!extensions.length) {
+          const row = document.createElement('tr');
+          const cell = addCell(row, 'No Microsoft.KubernetesConfiguration extensions are installed on this cluster.');
+          cell.colSpan = 5;
+          cell.className = 'empty';
+          rows.appendChild(row);
+        }
+        for (const extension of [...extensions].sort((a, b) => String(a.name).localeCompare(String(b.name)))) {
+          const row = document.createElement('tr');
+          addCell(row, extension.name);
+          addCell(row, extension.extensionType);
+          addCell(row, extension.version);
+          const stateCell = document.createElement('td');
+          stateCell.appendChild(badge(extension.provisioningState));
+          row.appendChild(stateCell);
+          addCell(row, extension.autoUpgradeMinorVersion ? 'Enabled' : 'Disabled');
+          rows.appendChild(row);
+        }
+
+        text('agentErrorSummary', `${agentErrors.length} reported`);
+        const agentErrorList = byId('agentErrorList');
+        agentErrorList.replaceChildren();
+        if (!agentErrors.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No Arc agent errors are currently reported for this cluster.';
+          agentErrorList.appendChild(empty);
+        }
+        for (const agentError of agentErrors) {
+          const described = describeAgentError(agentError);
+          const item = document.createElement('div');
+          item.className = 'agent-error';
+          item.appendChild(badge('Error', 'down'));
+          const content = document.createElement('div');
+          const title = document.createElement('div');
+          title.textContent = described.title;
+          const description = document.createElement('div');
+          description.className = 'description';
+          description.textContent = described.description;
+          content.append(title, description);
+          item.appendChild(content);
+          agentErrorList.appendChild(item);
+        }
+        renderTable();
+        byId('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (exception) {
+        reportError(exception);
+      }
+    }
+
+    function collapseDetail() {
+      state.selectedKey = null;
+      byId('detailPanel').classList.add('hidden');
+      renderTable();
+    }
+
+    function showLoading() {
+      const startedAt = Date.now();
+      const initialLoad = state.clusters.length === 0;
+      const updateMessage = () => {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        text('loadingMessage', initialLoad
+          ? `Loading Kubernetes cluster and extension inventory. The first load can take a minute or more. Keep this page open. (${elapsed}s)`
+          : `Refreshing Arc-enabled Kubernetes data... (${elapsed}s)`);
+      };
+      updateMessage();
+      byId('loading').classList.remove('hidden');
+      loadingTimer = setInterval(updateMessage, 1000);
+    }
+
+    function hideLoading() {
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refresh, interval);
+    }
+
+    function reportError(exception) {
+      byId('error').textContent = exception.message;
+      byId('error').classList.remove('hidden');
+    }
+
+    function buildClusterQuery(cursor) {
+      const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), sort: state.sortKey, direction: state.sortDirection });
+      if (state.search) params.set('search', state.search);
+      if (state.resourceGroupFilter) params.set('resourceGroup', state.resourceGroupFilter);
+      if (state.locationFilter) params.set('location', state.locationFilter);
+      if (state.healthFilter) params.set('health', state.healthFilter);
+      if (state.connectivityFilter) params.set('connectivityStatus', state.connectivityFilter);
+      if (state.distributionFilter) params.set('distribution', state.distributionFilter);
+      if (state.infrastructureFilter) params.set('infrastructure', state.infrastructureFilter);
+      if (cursor) params.set('cursor', cursor);
+      return params.toString();
+    }
+
+    async function loadClusterPage(cursor = '') {
+      const response = await fetch(`/api/kubernetes/clusters?${buildClusterQuery(cursor)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (response.status === 409 && data.error && data.error.startsWith('cursor_')) {
+        // A stale or tampered cursor (snapshot regenerated, or filters/sort changed since the
+        // cursor was issued) is recovered by transparently restarting from the first page.
+        resetPaging();
+        return loadClusterPage('');
+      }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      state.clusters = data.clusters || [];
+      state.total = data.page.total;
+      state.hasNext = data.page.hasNext;
+      state.nextCursor = data.page.nextCursor;
+      if (state.selectedKey && !state.clusters.some(cluster => cluster.key === state.selectedKey)) {
+        state.selectedKey = null;
+        byId('detailPanel').classList.add('hidden');
+      }
+      renderTable();
+      return data;
+    }
+
+    async function goToNextPage() {
+      if (!state.hasNext || !state.nextCursor) return;
+      state.previousCursors.push(state.cursor);
+      state.cursor = state.nextCursor;
+      await loadClusterPage(state.cursor);
+    }
+
+    async function goToPreviousPage() {
+      if (!state.previousCursors.length) return;
+      state.cursor = state.previousCursors.pop();
+      await loadClusterPage(state.cursor);
+    }
+
+    function applyFiltersFromControls() {
+      state.search = byId('search').value.trim();
+      state.resourceGroupFilter = byId('resourceGroupFilter').value;
+      state.locationFilter = byId('locationFilter').value;
+      state.healthFilter = byId('healthFilter').value;
+      state.connectivityFilter = byId('connectivityFilter').value;
+      state.distributionFilter = byId('distributionFilter').value;
+      state.infrastructureFilter = byId('infrastructureFilter').value;
+      resetPaging();
+      loadClusterPage().catch(reportError);
+    }
+
+    async function refresh() {
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const button = byId('refresh');
+      const error = byId('error');
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      error.classList.add('hidden');
+      showLoading();
+      try {
+        const summaryResponse = await fetch('/api/kubernetes/summary', { cache: 'no-store' });
+        const summaryData = await summaryResponse.json();
+        if (!summaryResponse.ok) {
+          if (summaryResponse.status === 503) { setTimeout(refresh, 2000); return; }
+          throw new Error(summaryData.error || `Request failed (${summaryResponse.status})`);
+        }
+        text('account', `${summaryData.account.subscription} | ${summaryData.account.user}`);
+        text('updated', `Updated ${new Date(summaryData.generatedAt).toLocaleString()} | Azure Resource Graph inventory`);
+        renderSummary(summaryData.summary);
+        configureFilters(summaryData.summary.facets);
+        resetPaging();
+        await loadClusterPage('');
+      } catch (exception) {
+        reportError(exception);
+      } finally {
+        hideLoading();
+        refreshInProgress = false;
+        button.disabled = false;
+        button.textContent = 'Refresh Now';
+      }
+    }
+
+    async function logout() {
+      // Logout clears Azure CLI state, encrypted configuration, and the local server process.
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+        if (data.proxySignOutUrl) {
+          window.location.assign(data.proxySignOutUrl);
+          return;
+        }
+        clearInterval(refreshTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+        button.disabled = false;
+      }
+    }
+
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('search').addEventListener('input', () => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(applyFiltersFromControls, 350);
+    });
+    byId('resourceGroupFilter').addEventListener('change', applyFiltersFromControls);
+    byId('locationFilter').addEventListener('change', applyFiltersFromControls);
+    byId('healthFilter').addEventListener('change', applyFiltersFromControls);
+    byId('connectivityFilter').addEventListener('change', applyFiltersFromControls);
+    byId('distributionFilter').addEventListener('change', applyFiltersFromControls);
+    byId('infrastructureFilter').addEventListener('change', applyFiltersFromControls);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    byId('collapseDetail').addEventListener('click', collapseDetail);
+    byId('clusterPrev').addEventListener('click', goToPreviousPage);
+    byId('clusterNext').addEventListener('click', goToNextPage);
+    document.querySelectorAll('#clusterHeaders .sort-button').forEach(button => {
+      button.addEventListener('click', () => setSort(button.dataset.sortKey));
+    });
+    configureRefreshInterval();
+    refresh();
+  </script>
+</body>
+</html>

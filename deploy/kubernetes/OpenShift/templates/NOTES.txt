@@ -1,0 +1,17 @@
+Azure Arc Observability Dashboard was installed as a singleton OpenShift workload.
+
+Route:
+  https://{{ .Values.route.host }}
+
+Verify:
+  oc get deployment,pod,service,route,pvc -l app.kubernetes.io/instance={{ .Release.Name }}
+  oc logs deployment/{{ include "arc-dashboard.fullname" . }} -c dashboard
+  oc logs deployment/{{ include "arc-dashboard.fullname" . }} -c oauth2-proxy
+
+The dashboard readiness probe returns 503 until an administrator saves the
+initial Arc subscription and resource-group scope. The Service intentionally
+publishes the singleton endpoint during bootstrap; oauth2-proxy still enforces
+Microsoft Entra authentication.
+
+The PVC is retained on Helm uninstall by default. Delete it explicitly only
+after an approved backup and confirmation that saved state is no longer needed.

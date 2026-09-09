@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arc-dashboard.fullname" . }}
+  labels:
+    {{- include "arc-dashboard.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  # Setup is served through the proxy before /health/ready becomes successful.
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "arc-dashboard.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: proxy
+      port: {{ .Values.service.port }}
+      targetPort: proxy
+      protocol: TCP
+      appProtocol: http

@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc-enabled SQL Estate</title>
+  <style>
+    /* SQL estate presentation: shared dashboard primitives plus drill-down and coverage components. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --yellow: #f6c344;
+      --orange: #f59e42;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+      --purple: #a48afb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1150px;
+      background: linear-gradient(180deg, #071019, var(--bg) 260px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    main { width: min(1740px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 44px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    h1 { margin: 0 0 5px; font-size: 28px; font-weight: 650; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    h3 { margin: 0 0 4px; font-size: 14px; }
+    .subtitle, .meta, .empty { color: var(--muted); }
+    .meta { margin-top: 3px; font-size: 12px; }
+    .actions { display: flex; width: 740px; justify-content: flex-end; gap: 10px; }
+    .actions > select, .actions > button { width: 170px; height: 40px; }
+    #refreshInterval { width: 230px; min-width: 230px; }
+    .setup-button {
+      display: inline-flex; width: 140px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); text-decoration: none; font: inherit; padding: 9px 12px;
+    }
+    .setup-button:hover { border-color: var(--cyan); }
+    nav.tabs { display: flex; width: min(1296px, calc(100vw - 40px)); gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    nav.tabs a {
+      display: inline-flex; width: 156px; min-height: 36px; align-items: center; justify-content: center;
+      padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+      color: var(--muted); text-decoration: none; text-align: center; font-size: 13px; font-weight: 600;
+    }
+    nav.tabs a:hover { border-color: var(--blue); color: var(--text); }
+    nav.tabs a.active { background: var(--blue); border-color: var(--blue); color: #071019; }
+    input, select, button {
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); font: inherit; padding: 9px 12px;
+    }
+    input { width: 270px; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--cyan); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+    .cards { display: grid; grid-template-columns: repeat(9, minmax(125px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .card {
+      padding: 14px 15px; border: 1px solid var(--line); border-top: 3px solid var(--cyan);
+      border-radius: 7px; background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    }
+    .card.good { border-top-color: var(--green); }
+    .card.warn { border-top-color: var(--yellow); }
+    .card.purple { border-top-color: var(--purple); }
+    .card .label { color: var(--muted); font-size: 12px; }
+    .card .value { margin-top: 5px; font-size: 24px; font-weight: 700; }
+    .value-story { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .story {
+      padding: 15px; border: 1px solid var(--line); border-radius: 7px;
+      background: linear-gradient(145deg, rgba(65,199,217,.08), var(--panel));
+    }
+    .story-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .story-value { color: var(--cyan); font-size: 20px; font-weight: 700; }
+    .story p { min-height: 34px; margin: 7px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .progress { height: 7px; overflow: hidden; border-radius: 8px; background: #263844; }
+    .progress span { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
+    .progress span.good { background: var(--green); }
+    .progress span.warn { background: var(--yellow); }
+    .panels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .panel, .table-panel, .detail-panel {
+      overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    }
+    .panel-title, .table-title, .detail-title {
+      display: flex; justify-content: space-between; align-items: center; min-height: 46px;
+      padding: 12px 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.015);
+    }
+    .table-title-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .table-title-actions input { width: 240px; height: 34px; padding: 6px 10px; }
+    .table-title-actions select { width: 170px; height: 34px; padding: 6px 10px; }
+    .table-title-actions .meta { min-width: 120px; text-align: right; }
+    .detail-actions { display: flex; align-items: center; gap: 12px; }
+    .collapse-button { padding: 6px 10px; color: var(--muted); font-size: 12px; }
+    .rank-list { list-style: none; margin: 0; padding: 4px 0; min-height: 170px; }
+    .rank-list li {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px;
+      padding: 8px 14px; border-bottom: 1px solid rgba(41,58,71,.55);
+    }
+    .rank-list li:last-child { border: 0; }
+    .rank-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-value { font-weight: 650; font-variant-numeric: tabular-nums; }
+    .detail-panel { margin-bottom: 18px; border-color: rgba(65,199,217,.55); }
+    .detail-content { display: grid; grid-template-columns: 390px minmax(0, 1fr); }
+    .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; align-content: start; background: var(--line); border-right: 1px solid var(--line); }
+    .fact { min-height: 64px; padding: 11px 13px; background: var(--panel); }
+    .fact .label { color: var(--muted); font-size: 11px; }
+    .fact .value { margin-top: 4px; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+    .table-wrap { max-height: 560px; overflow: auto; }
+    .detail-content .table-wrap { max-height: 325px; }
+    .recommendations { border-top: 1px solid var(--line); }
+    .recommendation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px 14px 14px; }
+    .recommendation {
+      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px;
+      padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2);
+    }
+    .recommendation .description { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .badge.high { background: rgba(240,82,82,.16); color: #ff9d9d; }
+    .badge.medium { background: rgba(246,195,68,.14); color: var(--yellow); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 11px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(41,58,71,.62); }
+    th { position: sticky; top: 0; z-index: 1; background: #16242f; color: #b8c8d3; font-weight: 600; }
+    th[aria-sort] { padding: 0; }
+    .sort-button {
+      display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 11px; border: 0; border-radius: 0; background: transparent;
+      color: inherit; font-size: 12px; font-weight: 600; text-align: left;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--text); background: rgba(65,199,217,.09); outline: none; }
+    .sort-indicator { width: 10px; color: var(--cyan); text-align: center; }
+    tbody tr:hover { background: rgba(70,164,232,.055); }
+    tbody tr.clickable { cursor: pointer; }
+    tbody tr.clickable:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+    tbody tr.selected { background: rgba(70,164,232,.1); }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-weight: 650; background: rgba(146,164,177,.13); color: var(--muted); }
+    .badge.good, .badge.connected, .badge.protected, .badge.online { background: rgba(49,196,141,.14); color: var(--green); }
+    .badge.warn, .badge.unknown { background: rgba(246,195,68,.14); color: var(--yellow); }
+    .badge.engine { background: rgba(65,199,217,.14); color: var(--cyan); }
+    .badge.ssis, .badge.ssas, .badge.ssrs { background: rgba(164,138,251,.14); color: var(--purple); }
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      color: #b9dcf6;
+      background: rgba(70,164,232,.09);
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border: 2px solid rgba(70,164,232,.28);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .hidden { display: none; }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+    .pager button { padding: 6px 12px; }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Navigation and SQL-specific filters. -->
+    <header>
+      <div>
+        <h1>Arc-enabled SQL Estate</h1>
+        <div class="subtitle" id="account">Loading SQL estate data...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html" class="active">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout">Logout</button>
+      </div>
+    </header>
+
+    <div id="error" class="error hidden"></div>
+    <div id="loading" class="loading hidden"><span class="spinner" aria-hidden="true"></span><span id="loadingMessage"></span></div>
+
+    <!-- Consolidated estate totals, including SQL engine compute capacity. -->
+    <div class="cards">
+      <div class="card"><div class="label">Arc SQL resources</div><div class="value" id="instanceTotal">-</div></div>
+      <div class="card good"><div class="label">Connected</div><div class="value" id="connectedTotal">-</div></div>
+      <div class="card purple"><div class="label">Database engines</div><div class="value" id="engineTotal">-</div></div>
+      <div class="card purple"><div class="label">SQL engine cores</div><div class="value" id="coreTotal">-</div></div>
+      <div class="card"><div class="label">Host machines</div><div class="value" id="hostTotal">-</div></div>
+      <div class="card"><div class="label">Discovered databases</div><div class="value" id="databaseTotal">-</div></div>
+      <div class="card"><div class="label">Database footprint</div><div class="value" id="footprintTotal">-</div></div>
+      <div class="card good"><div class="label">Defender protected</div><div class="value" id="protectedTotal">-</div></div>
+      <div class="card warn"><div class="label">Migration assessed</div><div class="value" id="assessedTotal">-</div></div>
+    </div>
+
+    <!-- Coverage indicators translate inventory into security, monitoring, and modernization outcomes. -->
+    <div class="value-story">
+      <div class="story"><div class="story-head"><h3>Unified discovery</h3><span class="story-value" id="discoveryValue">-</span></div><p>SQL engines and supporting services inventoried through one Azure control plane.</p><div class="progress"><span id="discoveryBar"></span></div></div>
+      <div class="story"><div class="story-head"><h3>Security coverage</h3><span class="story-value" id="securityValue">-</span></div><p>Instances reporting protection from Microsoft Defender for Cloud.</p><div class="progress"><span class="good" id="securityBar"></span></div></div>
+      <div class="story"><div class="story-head"><h3>Performance monitoring</h3><span class="story-value" id="monitoringValue">-</span></div><p>Database engines enabled for Arc SQL performance monitoring.</p><div class="progress"><span id="monitoringBar"></span></div></div>
+      <div class="story"><div class="story-head"><h3>Modernization insight</h3><span class="story-value" id="migrationValue">-</span></div><p>Engines with Azure migration assessment and target readiness analysis.</p><div class="progress"><span class="warn" id="migrationBar"></span></div></div>
+    </div>
+
+    <!-- Distribution panels expose version, edition, licensing, and discovered-service composition. -->
+    <div class="panels">
+      <div class="panel"><div class="panel-title"><h2>SQL versions</h2></div><ol class="rank-list" id="versions"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>Editions</h2></div><ol class="rank-list" id="editions"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>License posture</h2></div><ol class="rank-list" id="licenses"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>SQL services discovered</h2></div><ol class="rank-list" id="services"></ol></div>
+    </div>
+
+    <!-- Row selection expands this host-aware SQL, database, patch, and Defender drill-down. -->
+    <section class="detail-panel hidden" id="detailPanel">
+      <div class="detail-title">
+        <div><h2 id="detailName">Instance detail</h2><div class="meta" id="detailHost"></div></div>
+        <div class="detail-actions"><span class="meta" id="detailDatabaseSummary"></span><button class="collapse-button" id="collapseDetail" type="button">Collapse details ▲</button></div>
+      </div>
+      <div class="detail-content">
+        <div class="facts" id="facts"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Database</th><th>State</th><th>Size</th><th>Free</th><th>Recovery</th><th>Compatibility</th><th>Last inventory</th></tr></thead>
+            <tbody id="databaseRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="recommendations">
+        <div class="detail-title"><h2>Defender for Cloud recommendations</h2><span class="meta" id="recommendationSummary"></span></div>
+        <div class="recommendation-list" id="recommendationList"></div>
+      </div>
+    </section>
+
+    <!-- Sortable master inventory; each row can populate the detail panel above. -->
+    <div class="table-panel">
+      <div class="table-title">
+        <h2>SQL estate inventory</h2>
+        <div class="table-title-actions">
+          <input id="search" type="search" placeholder="Search instance, host, or location">
+          <select id="serviceFilter"><option value="">All SQL services</option></select>
+          <select id="defenderFilter">
+            <option value="">All security states</option>
+            <option value="Protected">Defender protected</option>
+            <option value="Unknown">Protection unknown</option>
+          </select>
+          <span class="meta" id="shown"></span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="sqlHeaders"><tr>
+            <th aria-sort="ascending"><button class="sort-button" data-sort-key="name">Instance / service<span class="sort-indicator">▲</span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="hostName">Host<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="serviceType">Service<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="status">Status<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="version">Version<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="edition">Edition<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="licenseType">License<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="defenderStatus">Defender<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="monitoringEnabled">Monitoring<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="databaseCount">Databases<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="resourceGroup">Resource group<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="location">Location<span class="sort-indicator"></span></button></th>
+          </tr></thead>
+          <tbody id="instanceRows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="instancePrev" type="button">◀ Previous</button>
+        <span class="meta" id="instanceRange"></span>
+        <button id="instanceNext" type="button">Next ▶</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Related API collections remain separate and are joined by resource identifiers, but only
+    // for the single selected instance's on-demand detail -- summary cards, distributions, and
+    // the inventory table are all bounded, aggregated, or paginated server-side.
+    const PAGE_SIZE = 100;
+    const state = {
+      instances: [], selectedId: null, sortKey: 'name', sortDirection: 'ascending',
+      search: '', serviceFilter: '', defenderFilter: '',
+      cursor: '', nextCursor: '', previousCursors: [], total: 0, hasNext: false
+    };
+    let refreshInProgress = false;
+    let loadingTimer = null;
+    let refreshTimer = null;
+    let searchDebounceTimer = null;
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+    const value = input => input === null || input === undefined || input === '' ? null : input;
+    const normalized = input => String(input || '').toLowerCase();
+    const percent = (part, total) => total ? Math.round(part * 100 / total) : 0;
+
+    function formatSize(mb) {
+      const amount = Number(mb || 0);
+      if (amount >= 1048576) return `${(amount / 1048576).toFixed(1)} TB`;
+      if (amount >= 1024) return `${(amount / 1024).toFixed(1)} GB`;
+      return `${amount.toFixed(0)} MB`;
+    }
+
+    function formatDate(date) {
+      return date ? new Date(date).toLocaleString() : '-';
+    }
+
+    function badge(content, className = '') {
+      const span = document.createElement('span');
+      span.className = `badge ${className || normalized(content).replace(/[^a-z0-9]/g, '')}`;
+      span.textContent = value(content) ?? 'Unknown';
+      return span;
+    }
+
+    function addCell(row, content) {
+      const cell = document.createElement('td');
+      cell.textContent = value(content) ?? '-';
+      row.appendChild(cell);
+      return cell;
+    }
+
+    function renderDistributionList(id, entries) {
+      const list = byId(id);
+      list.replaceChildren();
+      for (const entry of entries || []) {
+        const item = document.createElement('li');
+        const label = document.createElement('span');
+        label.className = 'rank-name';
+        label.textContent = entry.name;
+        const total = document.createElement('span');
+        total.className = 'rank-value';
+        total.textContent = entry.count;
+        item.append(label, total);
+        list.appendChild(item);
+      }
+    }
+
+    function setCoverage(prefix, part, total, denominator = total) {
+      const result = percent(part, denominator);
+      text(`${prefix}Value`, `${result}%`);
+      byId(`${prefix}Bar`).style.width = `${result}%`;
+    }
+
+    function renderSummary(summary) {
+      // Every card, coverage bar, and distribution list below is computed once server-side
+      // across the complete SQL estate -- the browser only ever renders the aggregate.
+      text('instanceTotal', summary.instanceTotal.toLocaleString());
+      text('connectedTotal', summary.connectedTotal.toLocaleString());
+      text('engineTotal', summary.engineTotal.toLocaleString());
+      text('coreTotal', summary.coreTotal.toLocaleString());
+      text('hostTotal', summary.hostTotal.toLocaleString());
+      text('databaseTotal', summary.databaseTotal.toLocaleString());
+      text('footprintTotal', formatSize(summary.footprintMB));
+      text('protectedTotal', summary.protectedTotal.toLocaleString());
+      text('assessedTotal', summary.assessedTotal.toLocaleString());
+      setCoverage('discovery', summary.connectedTotal, summary.instanceTotal);
+      setCoverage('security', summary.protectedTotal, summary.instanceTotal);
+      setCoverage('monitoring', summary.monitoredTotal, summary.engineTotal);
+      setCoverage('migration', summary.assessedTotal, summary.engineTotal);
+      renderDistributionList('versions', summary.distributions?.versions);
+      renderDistributionList('editions', summary.distributions?.editions);
+      renderDistributionList('licenses', summary.distributions?.licenses);
+      renderDistributionList('services', summary.distributions?.services);
+    }
+
+    function configureFilters(facets) {
+      const select = byId('serviceFilter');
+      const selected = select.value;
+      select.replaceChildren(new Option('All SQL services', ''));
+      for (const service of facets?.serviceTypes || []) select.add(new Option(service, service));
+      if ((facets?.serviceTypes || []).includes(selected)) select.value = selected;
+    }
+
+    function updateSortHeaders() {
+      document.querySelectorAll('#sqlHeaders th').forEach(header => {
+        const button = header.querySelector('.sort-button');
+        const active = button.dataset.sortKey === state.sortKey;
+        header.setAttribute('aria-sort', active ? state.sortDirection : 'none');
+        button.querySelector('.sort-indicator').textContent = active ? (state.sortDirection === 'ascending' ? '▲' : '▼') : '';
+      });
+    }
+
+    function setSort(key) {
+      if (state.sortKey === key) {
+        state.sortDirection = state.sortDirection === 'ascending' ? 'descending' : 'ascending';
+      } else {
+        state.sortKey = key;
+        state.sortDirection = key === 'databaseCount' || key === 'monitoringEnabled' ? 'descending' : 'ascending';
+      }
+      updateSortHeaders();
+      resetPaging();
+      loadInstancePage().catch(reportError);
+    }
+
+    function resetPaging() {
+      state.cursor = '';
+      state.previousCursors = [];
+    }
+
+    function renderTable() {
+      text('shown', state.total
+        ? `${state.previousCursors.length * PAGE_SIZE + 1}-${state.previousCursors.length * PAGE_SIZE + state.instances.length} of ${state.total.toLocaleString()} resources | Select a row for details`
+        : '0 of 0 resources');
+      text('instanceRange', state.total
+        ? `${state.previousCursors.length * PAGE_SIZE + 1}-${state.previousCursors.length * PAGE_SIZE + state.instances.length} of ${state.total.toLocaleString()}`
+        : '0 of 0');
+      byId('instancePrev').disabled = state.previousCursors.length === 0;
+      byId('instanceNext').disabled = !state.hasNext;
+
+      const rows = byId('instanceRows');
+      rows.replaceChildren();
+      if (!state.instances.length) {
+        const row = document.createElement('tr');
+        const cell = addCell(row, 'No Arc-enabled SQL resources were found in the selected resource groups.');
+        cell.colSpan = 12;
+        cell.className = 'empty';
+        rows.appendChild(row);
+      }
+      for (const instance of state.instances) {
+        const row = document.createElement('tr');
+        row.className = `clickable${state.selectedId === instance.key ? ' selected' : ''}`;
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `View SQL estate details for ${instance.name}`);
+        addCell(row, instance.name);
+        addCell(row, instance.hostName);
+        const serviceCell = document.createElement('td');
+        serviceCell.appendChild(badge(instance.serviceType));
+        row.appendChild(serviceCell);
+        const statusCell = document.createElement('td');
+        statusCell.appendChild(badge(instance.status));
+        row.appendChild(statusCell);
+        addCell(row, instance.version);
+        addCell(row, instance.edition);
+        addCell(row, instance.licenseType);
+        const defenderCell = document.createElement('td');
+        defenderCell.appendChild(badge(instance.defenderStatus));
+        row.appendChild(defenderCell);
+        const monitoringCell = document.createElement('td');
+        monitoringCell.appendChild(badge(instance.monitoringEnabled ? 'Enabled' : 'Not enabled', instance.monitoringEnabled ? 'good' : 'warn'));
+        row.appendChild(monitoringCell);
+        addCell(row, instance.databaseCount);
+        addCell(row, instance.resourceGroup);
+        addCell(row, instance.location);
+        const activate = () => selectInstance(instance.key);
+        row.addEventListener('click', activate);
+        row.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            activate();
+          }
+        });
+        rows.appendChild(row);
+      }
+    }
+
+    function addFact(label, content) {
+      const fact = document.createElement('div');
+      fact.className = 'fact';
+      const labelElement = document.createElement('div');
+      labelElement.className = 'label';
+      labelElement.textContent = label;
+      const valueElement = document.createElement('div');
+      valueElement.className = 'value';
+      valueElement.textContent = value(content) ?? '-';
+      fact.append(labelElement, valueElement);
+      byId('facts').appendChild(fact);
+    }
+
+    async function selectInstance(key) {
+      // Databases, host patch posture, and Defender recommendations for the selected instance
+      // are joined server-side and fetched only when a row is actually opened.
+      state.selectedId = key;
+      try {
+        const response = await fetch(`/api/sql/instances/${key}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        const instance = data.instance;
+        const databases = data.databases || [];
+        const patchAssessment = data.patchAssessment;
+        const recommendations = data.recommendations || [];
+
+        byId('detailPanel').classList.remove('hidden');
+        text('detailName', instance.name);
+        text('detailHost', `${instance.hostName || 'Unknown host'} | ${instance.resourceGroup} | ${instance.location}`);
+        text('detailDatabaseSummary', `${databases.length} databases | ${patchAssessment?.pendingUpdates ?? 0} pending updates | ${recommendations.length} Defender actions`);
+        byId('facts').replaceChildren();
+        addFact('SQL version', `${instance.version || '-'} (${instance.currentVersion || '-'})`);
+        addFact('Patch level', instance.patchLevel);
+        addFact('Edition / license', `${instance.edition || '-'} / ${instance.licenseType || '-'}`);
+        addFact('Compute discovered', `${instance.cores ?? '-'} cores / ${instance.vCores ?? '-'} vCores`);
+        addFact('Defender for Cloud', instance.defenderStatus);
+        addFact('Performance monitoring', instance.monitoringEnabled ? 'Enabled' : 'Not enabled');
+        addFact('Migration assessment', instance.migrationAssessmentEnabled ? 'Enabled' : 'Not enabled');
+        addFact('Azure SQL MI readiness', instance.migrationMiStatus);
+        addFact('Azure SQL VM readiness', instance.migrationVmStatus);
+        const cost = instance.migrationMiMonthlyCost ?? instance.migrationVmMonthlyCost;
+        addFact('Estimated Azure monthly cost', cost == null ? null : `$${Number(cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
+        addFact('Last inventory upload', formatDate(instance.lastInventoryUpload));
+        addFact('High availability', instance.hadrEnabled ? 'Enabled' : 'Not detected');
+        addFact('Pending host updates', patchAssessment?.pendingUpdates ?? 'No assessment');
+        addFact('Security / critical updates', patchAssessment ? `${patchAssessment.securityUpdates} security / ${patchAssessment.criticalUpdates} critical` : 'No assessment');
+        addFact('Reboot pending', patchAssessment ? (patchAssessment.rebootPending ? 'Yes' : 'No') : 'No assessment');
+        addFact('Last patch assessment', patchAssessment ? formatDate(patchAssessment.lastAssessment) : 'No assessment');
+
+        const rows = byId('databaseRows');
+        rows.replaceChildren();
+        if (!databases.length) {
+          const row = document.createElement('tr');
+          const cell = addCell(row, 'No database inventory is associated with this SQL service.');
+          cell.colSpan = 7;
+          cell.className = 'empty';
+          rows.appendChild(row);
+        }
+        for (const database of [...databases].sort((a, b) => a.name.localeCompare(b.name))) {
+          const row = document.createElement('tr');
+          addCell(row, database.name);
+          const stateCell = document.createElement('td');
+          stateCell.appendChild(badge(database.state));
+          row.appendChild(stateCell);
+          addCell(row, formatSize(database.sizeMB));
+          addCell(row, formatSize(database.spaceAvailableMB));
+          addCell(row, database.recoveryMode);
+          addCell(row, database.compatibilityLevel);
+          addCell(row, formatDate(database.lastUpload));
+          rows.appendChild(row);
+        }
+
+        const high = recommendations.filter(item => normalized(item.severity) === 'high').length;
+        const medium = recommendations.filter(item => normalized(item.severity) === 'medium').length;
+        text('recommendationSummary', `${high} High | ${medium} Medium`);
+        const recommendationList = byId('recommendationList');
+        recommendationList.replaceChildren();
+        if (!recommendations.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No unhealthy High or Medium recommendations are associated with this SQL instance or its Arc host.';
+          recommendationList.appendChild(empty);
+        }
+        for (const recommendation of recommendations) {
+          const item = document.createElement('div');
+          item.className = 'recommendation';
+          item.appendChild(badge(recommendation.severity));
+          const content = document.createElement('div');
+          const title = document.createElement('div');
+          title.textContent = recommendation.recommendation;
+          const description = document.createElement('div');
+          description.className = 'description';
+          description.textContent = new DOMParser().parseFromString(recommendation.description || '', 'text/html').body.textContent.trim();
+          content.append(title, description);
+          item.appendChild(content);
+          recommendationList.appendChild(item);
+        }
+        renderTable();
+        byId('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (exception) {
+        reportError(exception);
+      }
+    }
+
+    function collapseDetail() {
+      state.selectedId = null;
+      byId('detailPanel').classList.add('hidden');
+      renderTable();
+    }
+
+    function showLoading() {
+      const startedAt = Date.now();
+      const initialLoad = state.instances.length === 0;
+      const updateMessage = () => {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        text('loadingMessage', initialLoad
+          ? `Loading SQL inventory, databases, patch status, and Defender recommendations. The first load can take a minute or more. Keep this page open. (${elapsed}s)`
+          : `Refreshing Arc-enabled SQL data... (${elapsed}s)`);
+      };
+      updateMessage();
+      byId('loading').classList.remove('hidden');
+      loadingTimer = setInterval(updateMessage, 1000);
+    }
+
+    function hideLoading() {
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refresh, interval);
+    }
+
+    function reportError(exception) {
+      byId('error').textContent = exception.message;
+      byId('error').classList.remove('hidden');
+    }
+
+    function buildInstanceQuery(cursor) {
+      const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), sort: state.sortKey, direction: state.sortDirection });
+      if (state.search) params.set('search', state.search);
+      if (state.serviceFilter) params.set('serviceType', state.serviceFilter);
+      if (state.defenderFilter) params.set('defenderStatus', state.defenderFilter);
+      if (cursor) params.set('cursor', cursor);
+      return params.toString();
+    }
+
+    async function loadInstancePage(cursor = '') {
+      const response = await fetch(`/api/sql/instances?${buildInstanceQuery(cursor)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (response.status === 409 && data.error && data.error.startsWith('cursor_')) {
+        resetPaging();
+        return loadInstancePage('');
+      }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      state.instances = data.instances || [];
+      state.total = data.page.total;
+      state.hasNext = data.page.hasNext;
+      state.nextCursor = data.page.nextCursor;
+      if (state.selectedId && !state.instances.some(instance => instance.key === state.selectedId)) {
+        state.selectedId = null;
+        byId('detailPanel').classList.add('hidden');
+      }
+      renderTable();
+      return data;
+    }
+
+    async function goToNextPage() {
+      if (!state.hasNext || !state.nextCursor) return;
+      state.previousCursors.push(state.cursor);
+      state.cursor = state.nextCursor;
+      await loadInstancePage(state.cursor);
+    }
+
+    async function goToPreviousPage() {
+      if (!state.previousCursors.length) return;
+      state.cursor = state.previousCursors.pop();
+      await loadInstancePage(state.cursor);
+    }
+
+    function applyFiltersFromControls() {
+      state.search = byId('search').value.trim();
+      state.serviceFilter = byId('serviceFilter').value;
+      state.defenderFilter = byId('defenderFilter').value;
+      resetPaging();
+      loadInstancePage().catch(reportError);
+    }
+
+    async function refresh() {
+      // A summary API supplies estate-wide totals/distributions; a separate paginated API
+      // supplies one bounded page of instances. Detail is fetched only for a selected row.
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const button = byId('refresh');
+      const error = byId('error');
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      error.classList.add('hidden');
+      showLoading();
+      try {
+        const summaryResponse = await fetch('/api/sql/summary', { cache: 'no-store' });
+        const summaryData = await summaryResponse.json();
+        if (!summaryResponse.ok) {
+          if (summaryResponse.status === 503) { setTimeout(refresh, 2000); return; }
+          throw new Error(summaryData.error || `Request failed (${summaryResponse.status})`);
+        }
+        text('account', `${summaryData.account.subscription} | ${summaryData.account.user}`);
+        text('updated', `Updated ${new Date(summaryData.generatedAt).toLocaleString()} | Azure Resource Graph inventory`);
+        renderSummary(summaryData.summary);
+        configureFilters(summaryData.summary.facets);
+        resetPaging();
+        await loadInstancePage('');
+      } catch (exception) {
+        reportError(exception);
+      } finally {
+        hideLoading();
+        refreshInProgress = false;
+        button.disabled = false;
+        button.textContent = 'Refresh Now';
+      }
+    }
+
+    async function logout() {
+      // Logout clears Azure CLI state, encrypted configuration, and the local server process.
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+        clearInterval(refreshTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+        button.disabled = false;
+      }
+    }
+
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('search').addEventListener('input', () => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(applyFiltersFromControls, 350);
+    });
+    byId('serviceFilter').addEventListener('change', applyFiltersFromControls);
+    byId('defenderFilter').addEventListener('change', applyFiltersFromControls);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    byId('collapseDetail').addEventListener('click', collapseDetail);
+    byId('instancePrev').addEventListener('click', goToPreviousPage);
+    byId('instanceNext').addEventListener('click', goToNextPage);
+    document.querySelectorAll('#sqlHeaders .sort-button').forEach(button => {
+      button.addEventListener('click', () => setSort(button.dataset.sortKey));
+    });
+    configureRefreshInterval();
+    refresh();
+  </script>
+</body>
+</html>

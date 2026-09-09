@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure Arc Observability Dashboard Setup</title>
+  <style>
+    /* Guided setup styling: sequential steps, status feedback, and resource-group selection. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --yellow: #f6c344;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 900px;
+      background: linear-gradient(180deg, #071019, var(--bg) 300px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 34px 0 50px; }
+    h1 { margin: 0 0 7px; font-size: 30px; }
+    h2 { margin: 0; font-size: 17px; }
+    p { color: var(--muted); line-height: 1.45; }
+    .hero { margin-bottom: 24px; }
+    .steps { display: grid; gap: 14px; }
+    .step {
+      overflow: hidden; border: 1px solid var(--line); border-radius: 8px;
+      background: linear-gradient(145deg, var(--panel-2), var(--panel));
+    }
+    .step-header {
+      display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+      padding: 14px 16px; border-bottom: 1px solid var(--line);
+    }
+    .step-number {
+      display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%;
+      background: rgba(70,164,232,.18); color: var(--blue); font-weight: 700;
+    }
+    .step-body { padding: 16px; }
+    .status { padding: 4px 9px; border-radius: 999px; background: rgba(146,164,177,.13); color: var(--muted); font-size: 12px; font-weight: 650; }
+    .status.good { background: rgba(49,196,141,.14); color: var(--green); }
+    .status.working { background: rgba(246,195,68,.14); color: var(--yellow); }
+    .status.bad { background: rgba(240,82,82,.14); color: var(--red); }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .row + .row { margin-top: 12px; }
+    input, select, button {
+      border: 1px solid var(--line); border-radius: 6px; background: #0d1821;
+      color: var(--text); font: inherit; padding: 10px 12px;
+    }
+    input, select { min-width: 0; flex: 1; }
+    button { cursor: pointer; font-weight: 600; }
+    button.primary { background: var(--blue); border-color: var(--blue); color: #071019; }
+    button:hover { border-color: var(--cyan); }
+    button:disabled { opacity: .5; cursor: wait; }
+    .hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .device {
+      display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+      margin-top: 12px; padding: 13px; border: 1px solid rgba(65,199,217,.4);
+      border-radius: 6px; background: rgba(65,199,217,.07);
+    }
+    .device-code { color: var(--cyan); font-size: 22px; font-weight: 750; letter-spacing: 2px; }
+    .device a { color: var(--cyan); }
+    pre {
+      max-height: 150px; overflow: auto; margin: 12px 0 0; padding: 11px;
+      border: 1px solid var(--line); border-radius: 6px; background: #081119;
+      color: #bacbd6; white-space: pre-wrap; font: 11px/1.4 Consolas, monospace;
+    }
+    .toolbar {
+      display: grid; grid-template-columns: minmax(220px, 360px) auto auto minmax(80px, 1fr) auto;
+      gap: 8px; align-items: center; margin-bottom: 10px;
+    }
+    .group-list {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+      max-height: 340px; overflow: auto; padding-right: 4px;
+    }
+    .group {
+      display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
+      padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; background: #0d1821;
+    }
+    .group input { flex: initial; width: 16px; }
+    .group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .group-count { color: var(--cyan); font-size: 12px; font-weight: 700; }
+    .configured {
+      display: flex; justify-content: space-between; align-items: center; gap: 20px;
+      margin-bottom: 18px; padding: 14px 16px; border: 1px solid rgba(49,196,141,.45);
+      border-radius: 7px; background: rgba(49,196,141,.08);
+    }
+    .configured a { color: var(--green); font-weight: 650; }
+    .configured-actions { display: flex; align-items: center; gap: 12px; }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+    .error { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .success { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--green); border-radius: 6px; color: #8ce5c4; background: rgba(49,196,141,.08); }
+    .configuration-loading {
+      display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px;
+      border: 1px solid rgba(70,164,232,.55); border-radius: 6px; color: #a9d8f7;
+      background: rgba(70,164,232,.09);
+    }
+    .configuration-spinner {
+      width: 17px; height: 17px; flex: 0 0 auto; border: 2px solid rgba(169,216,247,.3);
+      border-top-color: #a9d8f7; border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Setup progresses from local prerequisites through Azure scope selection. -->
+    <div class="hero">
+      <h1>Azure Arc Observability Dashboard Setup</h1>
+      <p>Connect this dashboard to any Azure subscription and scope it to only the resource groups containing the Arc-enabled servers and Arc-enabled Kubernetes clusters you want to manage.</p>
+    </div>
+
+    <!-- Displayed only when a decryptable configuration already exists for this Linux deployment user. -->
+    <div class="configured hidden" id="configuredBanner">
+      <div><strong>Dashboard configured</strong><div class="hint" id="configuredSummary"></div></div>
+      <div class="configured-actions"><a href="/global.html">Open dashboard →</a><button class="logout-button" id="setupLogout">Logout and clear</button></div>
+    </div>
+
+    <!-- Each step maps to a dedicated local setup API and can report asynchronous progress. -->
+    <div class="steps">
+      <section class="step">
+        <div class="step-header"><span class="step-number">1</span><h2>Azure CLI</h2><span class="status" id="cliStatus">Checking...</span></div>
+        <div class="step-body">
+          <div class="row"><div style="flex:1"><strong id="cliTitle">Checking Azure CLI installation</strong><div class="hint" id="cliDetail"></div></div><button id="installCli">Show install steps</button></div>
+          <pre class="hidden" id="installOutput"></pre>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-header"><span class="step-number">2</span><h2>Sign in to Azure</h2><span class="status" id="loginStatus">Waiting</span></div>
+        <div class="step-body">
+          <div class="row">
+            <input id="tenantId" placeholder="Optional tenant/directory ID">
+            <button class="primary" id="login">Start device sign-in</button>
+          </div>
+          <div class="hint">Leave the tenant blank to use your default directory, or enter a tenant ID when the target subscription is in another directory.</div>
+          <div class="device hidden" id="devicePrompt">
+            <div>Open <a id="deviceUrl" href="https://login.microsoft.com/device" target="_blank" rel="noopener">Microsoft device sign-in</a> and enter:<div class="device-code" id="deviceCode"></div></div>
+            <button id="copyCode">Copy code</button>
+          </div>
+          <pre class="hidden" id="loginOutput"></pre>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-header"><span class="step-number">3</span><h2>Select subscription</h2><span class="status" id="subscriptionStatus">Waiting</span></div>
+        <div class="step-body">
+          <div class="row"><select id="subscription"><option value="">Sign in to load subscriptions</option></select><button id="loadGroups">Load Resource Groups</button></div>
+          <div class="hint">Subscription list may take a few seconds to populate - recheck in five seconds.</div>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-header"><span class="step-number">4</span><h2>Choose Arc resource groups</h2><span class="status" id="groupStatus">Waiting</span></div>
+        <div class="step-body">
+          <div class="configuration-loading hidden" id="configurationLoading" role="status" aria-live="polite">
+            <span class="configuration-spinner" aria-hidden="true"></span>
+            <span>Configuring the dashboard and discovering monitoring workspaces. Please wait...</span>
+          </div>
+          <div class="toolbar">
+            <input id="groupSearch" type="search" placeholder="Filter resource groups">
+            <button id="selectAll">Select all</button>
+            <button id="selectNone">Clear</button>
+            <span class="hint" id="selectedCount"></span>
+            <button class="primary" id="save" disabled>Save configuration and open dashboard</button>
+          </div>
+          <div class="group-list" id="groupList"><div class="empty">Load a subscription to discover Arc-enabled servers and Arc-enabled Kubernetes clusters.</div></div>
+          <div class="error hidden" id="error"></div>
+          <div class="success hidden" id="success"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // Named pollers allow device login and status refreshes to progress without overlap.
+    const state = { status: null, groups: [], selectedGroups: new Set(), pollers: {}, subscriptionRefreshAttempts: 0 };
+    const byId = id => document.getElementById(id);
+    const setStatus = (id, text, className = '') => {
+      const element = byId(id);
+      element.textContent = text;
+      element.className = `status ${className}`.trim();
+    };
+
+    async function request(url, options = {}) {
+      // Setup APIs consistently exchange JSON and surface server-provided error details.
+      const response = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      return data;
+    }
+
+    function showError(error) {
+      byId('error').textContent = error.message || String(error);
+      byId('error').classList.remove('hidden');
+    }
+
+    function clearMessages() {
+      byId('error').classList.add('hidden');
+      byId('success').classList.add('hidden');
+      byId('configurationLoading').classList.add('hidden');
+    }
+
+    function renderSubscriptions(subscriptions) {
+      const select = byId('subscription');
+      const selected = select.value || state.status?.configuration?.subscriptionId || '';
+      select.replaceChildren(new Option(subscriptions.length ? 'Select an Azure subscription' : 'No subscriptions available', ''));
+      for (const subscription of subscriptions) {
+        select.add(new Option(`${subscription.name} (${subscription.tenantId})`, subscription.id));
+      }
+      if ([...select.options].some(option => option.value === selected)) select.value = selected;
+      setStatus('subscriptionStatus', subscriptions.length ? `${subscriptions.length} available` : 'Sign in required', subscriptions.length ? 'good' : '');
+      byId('loadGroups').disabled = !select.value;
+    }
+
+    function renderStatus(status) {
+      // Reconcile the entire setup UI from server state so reloads and polling follow the same path.
+      state.status = status;
+      const cli = status.cli;
+      setStatus('cliStatus', cli.installed ? 'Installed' : 'Not installed', cli.installed ? 'good' : 'bad');
+      byId('cliTitle').textContent = cli.installed ? `Azure CLI ${cli.version || ''}` : 'Azure CLI is required';
+      byId('cliDetail').textContent = cli.installed ? cli.path : 'Install Azure CLI from the official Microsoft repository for this Linux distribution before signing in.';
+      byId('installCli').disabled = cli.installed;
+      byId('installCli').classList.toggle('hidden', cli.installed);
+      if (cli.installOutput) {
+        byId('installOutput').textContent = cli.installOutput;
+        byId('installOutput').classList.remove('hidden');
+      }
+      byId('login').disabled = !cli.installed;
+      renderSubscriptions(status.subscriptions || []);
+
+      if (status.configured) {
+        byId('configuredBanner').classList.remove('hidden');
+        byId('configuredSummary').textContent = `${status.configuration.resourceGroups.length} resource groups | ${status.configuration.workspaces.length} monitoring workspaces`;
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        renderStatus(await request('/api/setup/status'));
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    function stopPolling(name) {
+      const poller = state.pollers[name];
+      if (poller?.timer) clearTimeout(poller.timer);
+      delete state.pollers[name];
+    }
+
+    function startPolling(name, callback) {
+      // Sequential setTimeout calls avoid overlapping slow Azure CLI requests and shared-timer races.
+      if (state.pollers[name]) return;
+      const poller = { timer: null };
+      state.pollers[name] = poller;
+      const run = async () => {
+        if (state.pollers[name] !== poller) return;
+        const keepPolling = await callback();
+        if (keepPolling === false) {
+          stopPolling(name);
+          return;
+        }
+        poller.timer = setTimeout(run, 2000);
+      };
+      poller.timer = setTimeout(run, 500);
+    }
+
+    async function installCli() {
+      clearMessages();
+      byId('installCli').disabled = true;
+      try {
+        const result = await request('/api/setup/install-cli', { method: 'POST', body: '{}' });
+        byId('installOutput').textContent = result.message || 'Install Azure CLI in a terminal, then refresh this page.';
+        byId('installOutput').classList.remove('hidden');
+        setStatus('cliStatus', result.state === 'completed' ? 'Installed' : 'Manual install required', result.state === 'completed' ? 'good' : 'bad');
+        byId('installCli').disabled = result.state === 'completed';
+      } catch (error) {
+        byId('installCli').disabled = false;
+        showError(error);
+      }
+    }
+
+    function parseDevicePrompt(output) {
+      // The child login process emits only the short-lived device URL and code needed by the user.
+      const code = output.match(/enter the code\s+([A-Z0-9]+)/i)?.[1];
+      const url = output.match(/https:\/\/[^\s]+\/device/i)?.[0] || 'https://login.microsoft.com/device';
+      byId('loginOutput').textContent = output;
+      byId('loginOutput').classList.toggle('hidden', !output);
+      if (code) {
+        byId('deviceCode').textContent = code;
+        byId('deviceUrl').href = url;
+        byId('devicePrompt').classList.remove('hidden');
+      }
+    }
+
+    async function login() {
+      clearMessages();
+      state.subscriptionRefreshAttempts = 0;
+      stopPolling('login');
+      byId('login').disabled = true;
+      setStatus('loginStatus', 'Starting', 'working');
+      try {
+        const result = await request('/api/setup/login', {
+          method: 'POST',
+          body: JSON.stringify({ tenantId: byId('tenantId').value.trim() })
+        });
+        parseDevicePrompt(result.output || '');
+        const subscriptions = result.subscriptions || [];
+        if (result.state === 'completed' && subscriptions.length) {
+          setStatus('loginStatus', 'Signed in', 'good');
+          renderSubscriptions(result.subscriptions || []);
+          byId('login').disabled = false;
+        } else {
+          setStatus('loginStatus', result.state === 'completed' ? 'Loading subscriptions' : 'Waiting for sign-in', 'working');
+          startPolling('login', pollLogin);
+        }
+      } catch (error) {
+        byId('login').disabled = false;
+        setStatus('loginStatus', 'Failed', 'bad');
+        showError(error);
+      }
+    }
+
+    async function pollLogin() {
+      // Azure CLI may finish authentication before its account cache exposes subscriptions; retry status.
+      try {
+        const result = await request('/api/setup/login-status');
+        parseDevicePrompt(result.output || '');
+        if (result.state === 'completed') {
+          const status = await request('/api/setup/status');
+          const subscriptions = status.subscriptions || [];
+          if (!subscriptions.length && state.subscriptionRefreshAttempts < 15) {
+            state.subscriptionRefreshAttempts++;
+            setStatus('loginStatus', 'Loading subscriptions', 'working');
+            return true;
+          }
+          setStatus('loginStatus', subscriptions.length ? 'Signed in' : 'No subscriptions found', subscriptions.length ? 'good' : 'bad');
+          renderSubscriptions(subscriptions);
+          byId('login').disabled = false;
+          return false;
+        }
+        if (result.state === 'failed') {
+          setStatus('loginStatus', 'Failed', 'bad');
+          byId('login').disabled = false;
+          return false;
+        }
+        return true;
+      } catch (error) {
+        state.subscriptionRefreshAttempts++;
+        setStatus('loginStatus', 'Loading subscriptions', 'working');
+        if (state.subscriptionRefreshAttempts < 30) return true;
+        showError(error);
+        byId('login').disabled = false;
+        return false;
+      }
+    }
+
+    function selectedGroups() {
+      return [...state.selectedGroups];
+    }
+
+    function updateSelectedCount() {
+      const count = selectedGroups().length;
+      byId('selectedCount').textContent = `${count} selected`;
+      byId('save').disabled = count === 0;
+    }
+
+    function formatGroupCounts(group) {
+      const servers = Number(group.arcServers || 0);
+      const clusters = Number(group.arcClusters || 0);
+      const parts = [];
+      // A resource group may contain only Arc servers, only Arc-enabled Kubernetes clusters,
+      // or both -- Get-ArcResourceGroupList includes a group when it has either resource type,
+      // so a Kubernetes-only resource group (arcServers = 0) must still show a sensible label.
+      if (servers > 0 || clusters === 0) parts.push(`${servers} server${servers === 1 ? '' : 's'}`);
+      if (clusters > 0) parts.push(`${clusters} cluster${clusters === 1 ? '' : 's'}`);
+      return parts.join(', ');
+    }
+
+    function renderGroups() {
+      const query = byId('groupSearch').value.toLowerCase();
+      const list = byId('groupList');
+      list.replaceChildren();
+      const visible = state.groups.filter(group => group.resourceGroup.toLowerCase().includes(query));
+      for (const group of visible) {
+        const label = document.createElement('label');
+        label.className = 'group';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = group.resourceGroup;
+        checkbox.checked = state.selectedGroups.has(group.resourceGroup);
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) state.selectedGroups.add(group.resourceGroup);
+          else state.selectedGroups.delete(group.resourceGroup);
+          updateSelectedCount();
+        });
+        const name = document.createElement('span');
+        name.className = 'group-name';
+        name.textContent = group.resourceGroup;
+        const count = document.createElement('span');
+        count.className = 'group-count';
+        count.textContent = formatGroupCounts(group);
+        label.append(checkbox, name, count);
+        list.appendChild(label);
+      }
+      if (!visible.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = state.groups.length ? 'No resource groups match the filter.' : 'No Arc-enabled server or Arc-enabled Kubernetes cluster resource groups were found.';
+        list.appendChild(empty);
+      }
+      updateSelectedCount();
+    }
+
+    async function loadGroups() {
+      // Resource Graph returns groups containing either Arc servers or Arc-enabled Kubernetes
+      // clusters (or both); select all as a convenient safe default.
+      clearMessages();
+      const subscriptionId = byId('subscription').value;
+      if (!subscriptionId) return;
+      byId('loadGroups').disabled = true;
+      setStatus('groupStatus', 'Discovering', 'working');
+      try {
+        const result = await request(`/api/setup/resource-groups?subscriptionId=${encodeURIComponent(subscriptionId)}`);
+        state.groups = result.resourceGroups || [];
+        state.selectedGroups = new Set(state.groups.map(group => group.resourceGroup));
+        renderGroups();
+        setStatus('groupStatus', `${state.groups.length} found`, state.groups.length ? 'good' : 'bad');
+      } catch (error) {
+        setStatus('groupStatus', 'Failed', 'bad');
+        showError(error);
+      } finally {
+        byId('loadGroups').disabled = false;
+      }
+    }
+
+    async function save() {
+      // The server revalidates subscription and resource groups before encrypting configuration.
+      clearMessages();
+      const saveButton = byId('save');
+      saveButton.disabled = true;
+      saveButton.textContent = 'Configuring dashboard...';
+      byId('configurationLoading').classList.remove('hidden');
+      try {
+        const result = await request('/api/setup/configure', {
+          method: 'POST',
+          body: JSON.stringify({ subscriptionId: byId('subscription').value, resourceGroups: selectedGroups() })
+        });
+        byId('configurationLoading').classList.add('hidden');
+        byId('success').textContent = `Configuration saved for ${result.resourceGroups.length} resource groups. Opening dashboard...`;
+        byId('success').classList.remove('hidden');
+        setTimeout(() => { window.location.href = '/global.html'; }, 900);
+      } catch (error) {
+        byId('configurationLoading').classList.add('hidden');
+        showError(error);
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save configuration and open dashboard';
+      }
+    }
+
+    async function logout() {
+      // Stop browser polling after the API clears Azure state and terminates the local listener.
+      if (!confirm('Log out of Azure and permanently remove this dashboard configuration?')) return;
+      clearMessages();
+      byId('setupLogout').disabled = true;
+      try {
+        const result = await request('/api/logout', { method: 'POST', body: '{}' });
+        if (result.proxySignOutUrl) {
+          window.location.assign(result.proxySignOutUrl);
+          return;
+        }
+        Object.keys(state.pollers).forEach(stopPolling);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (error) {
+        byId('setupLogout').disabled = false;
+        showError(error);
+      }
+    }
+
+    byId('installCli').addEventListener('click', installCli);
+    byId('login').addEventListener('click', login);
+    byId('copyCode').addEventListener('click', () => navigator.clipboard.writeText(byId('deviceCode').textContent));
+    byId('subscription').addEventListener('change', () => { byId('loadGroups').disabled = !byId('subscription').value; });
+    byId('loadGroups').addEventListener('click', loadGroups);
+    byId('groupSearch').addEventListener('input', renderGroups);
+    byId('selectAll').addEventListener('click', () => {
+      state.groups.forEach(group => state.selectedGroups.add(group.resourceGroup));
+      renderGroups();
+    });
+    byId('selectNone').addEventListener('click', () => {
+      state.selectedGroups.clear();
+      renderGroups();
+    });
+    byId('save').addEventListener('click', save);
+    byId('setupLogout').addEventListener('click', logout);
+    loadStatus();
+  </script>
+</body>
+</html>

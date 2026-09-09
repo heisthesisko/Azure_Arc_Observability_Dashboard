@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc Server Observability</title>
+  <style>
+    /* Shared visual system: dark operations theme, reusable cards, panels, badges, and tables. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --yellow: #f6c344;
+      --orange: #f59e42;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1100px;
+      background: linear-gradient(180deg, #071019, var(--bg) 260px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    main { width: min(1740px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 44px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    h1 { margin: 0 0 5px; font-size: 28px; font-weight: 650; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    .subtitle, .meta, .empty { color: var(--muted); }
+    .meta { margin-top: 3px; font-size: 12px; }
+    .actions { display: flex; gap: 10px; }
+    .actions > select, .actions > button { width: 170px; height: 40px; }
+    #refreshInterval { width: 230px; min-width: 230px; }
+    .setup-button {
+      display: inline-flex; width: 140px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); text-decoration: none; font: inherit; padding: 9px 12px;
+    }
+    .setup-button:hover { border-color: var(--blue); }
+    nav.tabs { display: flex; width: min(1296px, calc(100vw - 40px)); gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    nav.tabs a {
+      display: inline-flex;
+      width: 156px;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    nav.tabs a:hover { border-color: var(--blue); color: var(--text); }
+    nav.tabs a.active { background: var(--blue); border-color: var(--blue); color: #071019; }
+
+    input, select, button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      padding: 9px 12px;
+    }
+
+    input { width: 285px; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--blue); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(11, minmax(110px, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      border-radius: 7px;
+      background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    }
+
+    .card.good { border-top-color: var(--green); }
+    .card.warn { border-top-color: var(--yellow); }
+    .card.bad { border-top-color: var(--red); }
+    .card .label { color: var(--muted); font-size: 12px; }
+    .card .value { margin-top: 5px; font-size: 24px; font-weight: 700; }
+
+    .panels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .panel, .table-panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+    .detail-panel {
+      margin-bottom: 18px;
+      overflow: hidden;
+      border: 1px solid var(--blue);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+    .detail-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 48px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(70,164,232,.06);
+    }
+    .detail-title h2 { font-size: 18px; }
+    .detail-actions { display: flex; gap: 8px; align-items: center; }
+    .monitor-button {
+      display: inline-flex; min-height: 36px; align-items: center; padding: 7px 11px;
+      border: 1px solid var(--cyan); border-radius: 6px; color: var(--cyan); text-decoration: none;
+    }
+    .monitor-button:hover { background: rgba(65,199,217,.08); }
+    .collapse-button { padding: 7px 11px; color: var(--muted); }
+    .detail-content { display: grid; grid-template-columns: 470px minmax(0, 1fr); gap: 16px; padding: 16px; }
+    .pie-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .pie-card { padding: 14px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); text-align: center; }
+    .pie {
+      --percentage: 0;
+      --chart-color: var(--blue);
+      position: relative;
+      display: grid;
+      width: 104px;
+      height: 104px;
+      margin: 0 auto 10px;
+      place-items: center;
+      border-radius: 50%;
+      background: conic-gradient(var(--chart-color) calc(var(--percentage) * 1%), #263844 0);
+    }
+    .pie::after { position: absolute; width: 72px; height: 72px; border-radius: 50%; background: var(--panel-2); content: ""; }
+    .pie span { position: relative; z-index: 1; font-size: 18px; font-weight: 700; }
+    .pie.unavailable { background: #263844; color: var(--muted); }
+    .pie-label { font-size: 12px; font-weight: 650; }
+    .pie-note { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .facts { display: grid; grid-template-columns: repeat(3, minmax(145px, 1fr)); gap: 10px; }
+    .fact { padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
+    .fact .label { color: var(--muted); font-size: 11px; }
+    .fact .value { margin-top: 4px; overflow-wrap: anywhere; font-size: 13px; font-weight: 650; }
+    .assessment { margin: 0 16px 16px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); }
+    .assessment-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px; border-bottom: 1px solid var(--line); }
+    .assessment-header h3 { margin-bottom: 3px; font-size: 16px; }
+    .assessment-controls { display: flex; align-items: end; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+    .assessment-control { display: grid; gap: 4px; color: var(--muted); font-size: 11px; }
+    .assessment-control select { width: 230px; height: 35px; padding: 6px 9px; }
+    .assessment-control input { width: 95px; height: 35px; padding: 6px 9px; }
+    .assessment-controls button { min-height: 35px; padding: 7px 12px; }
+    .assessment-body { padding: 14px; }
+    .assessment-status { color: var(--muted); font-size: 12px; }
+    .assessment-overview { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .confidence { padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .confidence.high { color: #9ee5ca; background: rgba(49,196,141,.15); }
+    .confidence.medium { color: #ffe08a; background: rgba(246,195,68,.14); }
+    .confidence.low { color: #ffb7b7; background: rgba(240,82,82,.16); }
+    .recommendations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .recommendation { padding: 13px; border: 1px solid var(--line); border-top: 3px solid var(--blue); border-radius: 6px; background: #101a23; }
+    .recommendation h4 { margin-bottom: 5px; font-size: 14px; }
+    .recommendation .sku { margin: 8px 0 4px; color: #b9dcf6; font-size: 18px; font-weight: 750; overflow-wrap: anywhere; }
+    .assessment-notes { margin: 13px 0 0 18px; color: var(--muted); font-size: 12px; }
+    .assessment-notes li { margin-top: 5px; }
+
+    .panel-title, .table-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 46px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.015);
+    }
+    .inventory-filters { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .inventory-filters input { width: 190px; height: 34px; padding: 6px 10px; }
+    .inventory-filters select { width: 165px; height: 34px; padding: 6px 10px; }
+    #resourceGroupFilter { width: 210px; }
+    .inventory-filters .meta { min-width: 110px; text-align: right; }
+
+    .rank-list { list-style: none; margin: 0; padding: 4px 0; min-height: 185px; }
+    .rank-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 9px 14px; border-bottom: 1px solid rgba(41,58,71,.55); }
+    .rank-list li:last-child { border: 0; }
+    .rank-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-value { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+    .table-wrap { max-height: 610px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 11px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(41,58,71,.62); }
+    th { position: sticky; top: 0; z-index: 1; background: #16242f; color: #b8c8d3; font-weight: 600; }
+    th[aria-sort] { padding: 0; }
+    .sort-button {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 11px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--text); background: rgba(70,164,232,.09); outline: none; }
+    .sort-indicator { width: 10px; color: var(--blue); text-align: center; }
+    tbody tr:hover { background: rgba(70,164,232,.055); }
+    tbody tr.clickable { cursor: pointer; }
+    tbody tr.clickable:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+    tbody tr.selected { background: rgba(70,164,232,.1); }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .health {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 83px;
+      font-weight: 600;
+    }
+
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 3px rgba(146,164,177,.1); }
+    .up .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(49,196,141,.12); }
+    .warning .dot { background: var(--yellow); box-shadow: 0 0 0 3px rgba(246,195,68,.12); }
+    .down .dot, .critical .dot { background: var(--red); box-shadow: 0 0 0 3px rgba(240,82,82,.12); }
+
+    .metric { display: flex; align-items: center; gap: 8px; min-width: 92px; }
+    .bar { width: 52px; height: 6px; overflow: hidden; border-radius: 5px; background: #263844; }
+    .bar span { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+    .bar span.warn { background: var(--yellow); }
+    .bar span.bad { background: var(--red); }
+    .number { min-width: 35px; text-align: right; font-variant-numeric: tabular-nums; }
+    .alert-count { color: var(--red); font-weight: 700; }
+    .update-count { color: var(--yellow); font-weight: 700; }
+    .lifecycle-summary { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
+    .lifecycle-stat { padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
+    .lifecycle-stat .label { color: var(--muted); font-size: 12px; }
+    .lifecycle-stat .value { margin-top: 3px; font-size: 21px; font-weight: 700; }
+    .lifecycle-stat.bad .value { color: var(--red); }
+    .lifecycle-stat.warn .value { color: var(--yellow); }
+    .lifecycle-stat.good .value { color: var(--green); }
+    .lifecycle-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-weight: 650; }
+    .lifecycle-badge.unsupported { color: #ffb7b7; background: rgba(240,82,82,.16); }
+    .lifecycle-badge.esu-ending { color: var(--orange); background: rgba(245,158,66,.15); }
+    .lifecycle-badge.approaching-eol { color: var(--yellow); background: rgba(246,195,68,.14); }
+    .lifecycle-note { padding: 10px 14px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); }
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      color: #b9dcf6;
+      background: rgba(70,164,232,.09);
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border: 2px solid rgba(70,164,232,.28);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .hidden { display: none; }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+    .pager button { padding: 6px 12px; }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Page header provides cross-view navigation and controls that filter only this page. -->
+    <header>
+      <div>
+        <h1>Arc Server Observability</h1>
+        <div class="subtitle" id="account">Loading Azure operations data...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html" class="active">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout">Logout</button>
+      </div>
+    </header>
+
+    <div id="error" class="error hidden"></div>
+    <div id="loading" class="loading hidden"><span class="spinner" aria-hidden="true"></span><span id="loadingMessage"></span></div>
+
+    <!-- Fleet-wide operational KPIs calculated from the current API response. -->
+    <div class="cards">
+      <div class="card"><div class="label">Monitored Arc nodes</div><div class="value" id="total">-</div></div>
+      <div class="card good"><div class="label">Up</div><div class="value" id="upTotal">-</div></div>
+      <div class="card warn"><div class="label">Warning</div><div class="value" id="warningTotal">-</div></div>
+      <div class="card bad"><div class="label">Down / critical</div><div class="value" id="downTotal">-</div></div>
+      <div class="card bad"><div class="label">Alerts (last hour)</div><div class="value" id="alertTotal">-</div></div>
+      <div class="card warn"><div class="label">Updates pending across fleet</div><div class="value" id="updateTotal">-</div></div>
+      <div class="card"><div class="label">Average CPU across fleet</div><div class="value" id="averageCpu">-</div></div>
+      <div class="card"><div class="label">Average memory across fleet</div><div class="value" id="averageMemory">-</div></div>
+      <div class="card"><div class="label">Total CPU cores</div><div class="value" id="coreTotal">-</div></div>
+      <div class="card"><div class="label">Total memory</div><div class="value" id="memoryTotal">-</div></div>
+      <div class="card"><div class="label">Total storage</div><div class="value" id="storageTotal">-</div></div>
+    </div>
+
+    <!-- Ranked panels highlight the nodes requiring the most immediate attention. -->
+    <div class="panels">
+      <div class="panel"><div class="panel-title"><h2>Top CPU utilization</h2></div><ol class="rank-list" id="topCpu"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>Top memory utilization</h2></div><ol class="rank-list" id="topMemory"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>Lowest disk free space</h2></div><ol class="rank-list" id="lowDisk"></ol></div>
+      <div class="panel"><div class="panel-title"><h2>Most alerts (last hour)</h2></div><ol class="rank-list" id="topAlerts"></ol></div>
+    </div>
+
+    <!-- Lifecycle view is intentionally separate from health so upgrade planning remains visible. -->
+    <div class="table-panel" style="margin-bottom:18px">
+      <div class="table-title"><h2>Windows Server lifecycle and ESU readiness</h2><span class="meta" id="lifecycleShown"></span></div>
+      <div class="lifecycle-summary">
+        <div class="lifecycle-stat bad"><div class="label">Unsupported / ESU ended</div><div class="value" id="unsupportedTotal">-</div></div>
+        <div class="lifecycle-stat bad"><div class="label">ESU ending within 12 months</div><div class="value" id="esuEndingTotal">-</div></div>
+        <div class="lifecycle-stat warn"><div class="label">Support ending within 18 months</div><div class="value" id="eolTotal">-</div></div>
+        <div class="lifecycle-stat good"><div class="label">Supported Windows servers</div><div class="value" id="supportedWindowsTotal">-</div></div>
+      </div>
+      <div class="lifecycle-note">Upgrade view includes unsupported Windows Server releases, Windows Server 2012/R2 under ESU, and Windows Server 2016 approaching its January 2027 end of support. Desktop Windows and Azure Stack HCI nodes are excluded.</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Node</th><th>Current OS</th><th>Build</th><th>Lifecycle</th><th>Support ended / ends</th><th>ESU coverage ends</th><th>Recommended target</th><th>Required action</th><th>Resource group</th></tr></thead>
+          <tbody id="lifecycleRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Row selection opens this collapsible operational and utilization detail. -->
+    <section class="detail-panel hidden" id="detailPanel">
+      <div class="detail-title">
+        <div><h2 id="detailName">Server detail</h2><div class="meta" id="detailSubtitle"></div></div>
+        <div class="detail-actions">
+          <a class="monitor-button" id="monitorWithAi" href="/assistant.html">Monitor with Arc AI</a>
+          <button class="collapse-button" id="collapseDetail" type="button">Collapse details ▲</button>
+        </div>
+      </div>
+      <div class="detail-content">
+        <div class="pie-grid">
+          <div class="pie-card"><div class="pie" id="cpuPie" style="--chart-color:var(--blue)"><span id="cpuPieValue">-</span></div><div class="pie-label">CPU utilization</div><div class="pie-note">Average, last 30 minutes</div></div>
+          <div class="pie-card"><div class="pie" id="memoryPie" style="--chart-color:var(--purple, #a48afb)"><span id="memoryPieValue">-</span></div><div class="pie-label">Memory utilization</div><div class="pie-note">Average, last 30 minutes</div></div>
+          <div class="pie-card"><div class="pie" id="diskPie" style="--chart-color:var(--cyan)"><span id="diskPieValue">-</span></div><div class="pie-label">Disk used</div><div class="pie-note">Based on lowest free volume</div></div>
+        </div>
+        <div class="facts" id="detailFacts"></div>
+      </div>
+      <div class="assessment">
+        <div class="assessment-header">
+          <div>
+            <h3>Azure VM SKU Assessment</h3>
+            <div class="meta">Preliminary read-only sizing from the current 30-minute telemetry window.</div>
+          </div>
+          <div class="assessment-controls">
+            <label class="assessment-control">Target Azure region
+              <select id="assessmentRegion"></select>
+            </label>
+            <label class="assessment-control">Balanced headroom
+              <input id="assessmentHeadroom" type="number" min="10" max="100" step="5" value="35">
+            </label>
+            <button id="runAssessment" type="button">Assess VM SKUs</button>
+          </div>
+        </div>
+        <div class="assessment-body">
+          <div class="assessment-status" id="assessmentStatus">Select a target region and run an assessment.</div>
+          <div class="hidden" id="assessmentResults">
+            <div class="assessment-overview">
+              <span class="confidence" id="assessmentConfidence"></span>
+              <span class="meta" id="assessmentObservation"></span>
+            </div>
+            <div class="recommendations" id="assessmentRecommendations"></div>
+            <ul class="assessment-notes" id="assessmentNotes"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Primary sortable inventory table. Rows are rebuilt whenever filters or sort order change. -->
+    <div class="table-panel">
+      <div class="table-title">
+        <h2>All managed servers</h2>
+        <div class="inventory-filters">
+          <input id="serverSearch" type="search" placeholder="Search server name">
+          <select id="healthFilter">
+            <option value="">All health states</option>
+            <option value="critical">Critical</option>
+            <option value="down">Down</option>
+            <option value="warning">Warning</option>
+            <option value="up">Up</option>
+            <option value="unknown">Unknown</option>
+          </select>
+          <select id="resourceGroupFilter"><option value="">All resource groups</option></select>
+          <select id="locationFilter"><option value="">All locations</option></select>
+          <span class="meta" id="shown"></span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="managedHeaders"><tr>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="name">Node<span class="sort-indicator"></span></button></th>
+            <th aria-sort="ascending"><button class="sort-button" data-sort-key="health">Health<span class="sort-indicator">▲</span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="osType">OS<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="cpuPercent">CPU<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="memoryPercent">Memory<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="diskFreePercent">Disk free<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="diskIops">Disk I/O<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="networkBytesPerSec">Network<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="activeAlerts">Alerts<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="pendingUpdates">Updates<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="lastHeartbeat">Last heartbeat<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="resourceGroup">Resource group<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="location">Location<span class="sort-indicator"></span></button></th>
+          </tr></thead>
+          <tbody id="serverRows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="serverPrev" type="button">◀ Previous</button>
+        <span class="meta" id="serverRange"></span>
+        <button id="serverNext" type="button">Next ▶</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Client-side state now only ever holds the current bounded page of servers (default 100
+    // rows) plus pagination cursors -- the full 50,000-server inventory is never downloaded or
+    // held in the browser at once. No Azure data is persisted across page loads.
+    const PAGE_SIZE = 100;
+    const state = {
+      servers: [], selectedId: null, selectedDetail: null, sortKey: 'health', sortDirection: 'ascending',
+      search: '', healthFilter: '', resourceGroupFilter: '', locationFilter: '',
+      cursor: '', nextCursor: '', previousCursors: [], total: 0, hasNext: false, generationId: null,
+      targetRegions: []
+    };
+    let refreshInProgress = false;
+    let loadingTimer = null;
+    let refreshTimer = null;
+    let searchDebounceTimer = null;
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+
+    function metricValue(value) {
+      if (value === null || value === undefined || value === '') return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function percent(value) {
+      const number = metricValue(value);
+      return number === null ? '-' : `${number.toFixed(1)}%`;
+    }
+
+    function network(value) {
+      let bytes = metricValue(value);
+      if (bytes === null) return '-';
+      const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+      let unit = 0;
+      while (bytes >= 1024 && unit < units.length - 1) { bytes /= 1024; unit++; }
+      return `${bytes.toFixed(unit ? 1 : 0)} ${units[unit]}`;
+    }
+
+    function iops(value) {
+      const number = metricValue(value);
+      return number === null ? '-' : `${number.toFixed(number >= 100 ? 0 : 1)} IOPS`;
+    }
+
+    function diskIo(iopsValue, bytesValue) {
+      const operations = iops(iopsValue);
+      const throughput = network(bytesValue);
+      if (operations === '-' && throughput === '-') return '-';
+      return `${operations} | ${throughput}`;
+    }
+
+    function milliseconds(value) {
+      const number = metricValue(value);
+      return number === null ? '-' : `${number.toFixed(number >= 10 ? 1 : 2)} ms`;
+    }
+
+    function capacity(value) {
+      const number = metricValue(value);
+      if (number === null) return '-';
+      let bytes = number;
+      const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+      let unit = 0;
+      while (bytes >= 1024 && unit < units.length - 1) { bytes /= 1024; unit++; }
+      return `${bytes.toFixed(unit >= 3 ? 1 : 0)} ${units[unit]}`;
+    }
+
+    function metricCell(row, value, invert = false) {
+      const cell = document.createElement('td');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'metric';
+      const number = metricValue(value);
+      const label = document.createElement('span');
+      label.className = 'number';
+      label.textContent = number === null ? '-' : `${number.toFixed(1)}%`;
+      const bar = document.createElement('span');
+      bar.className = 'bar';
+      const fill = document.createElement('span');
+      const risk = number === null ? 0 : (invert ? 100 - number : number);
+      fill.style.width = `${Math.max(0, Math.min(100, number || 0))}%`;
+      if (risk >= 90) fill.className = 'bad';
+      else if (risk >= 75) fill.className = 'warn';
+      bar.appendChild(fill);
+      wrapper.append(label, bar);
+      cell.appendChild(wrapper);
+      row.appendChild(cell);
+    }
+
+    function addCell(row, value, className = '') {
+      const cell = document.createElement('td');
+      cell.textContent = value ?? '-';
+      if (className) cell.className = className;
+      row.appendChild(cell);
+    }
+
+    function addFact(label, value) {
+      const fact = document.createElement('div');
+      fact.className = 'fact';
+      const labelElement = document.createElement('div');
+      labelElement.className = 'label';
+      labelElement.textContent = label;
+      const valueElement = document.createElement('div');
+      valueElement.className = 'value';
+      valueElement.textContent = value ?? '-';
+      fact.append(labelElement, valueElement);
+      byId('detailFacts').appendChild(fact);
+    }
+
+    function renderPie(id, value) {
+      const pie = byId(`${id}Pie`);
+      const number = metricValue(value);
+      const percentage = number === null ? null : Math.max(0, Math.min(100, number));
+      pie.style.setProperty('--percentage', percentage ?? 0);
+      pie.classList.toggle('unavailable', percentage === null);
+      text(`${id}PieValue`, percentage === null ? '-' : `${percentage.toFixed(1)}%`);
+      pie.setAttribute('aria-label', percentage === null ? 'Telemetry unavailable' : `${percentage.toFixed(1)} percent`);
+    }
+
+    function populateAssessmentRegions(preferredRegion = '') {
+      const select = byId('assessmentRegion');
+      const current = preferredRegion || select.value;
+      select.replaceChildren();
+      for (const region of state.targetRegions) {
+        const option = document.createElement('option');
+        option.value = region.name;
+        option.textContent = region.displayName ? `${region.displayName} (${region.name})` : region.name;
+        select.appendChild(option);
+      }
+      if (state.targetRegions.some(region => region.name === current)) select.value = current;
+      select.disabled = state.targetRegions.length === 0;
+      byId('runAssessment').disabled = state.targetRegions.length === 0;
+    }
+
+    function addAssessmentNote(value) {
+      const item = document.createElement('li');
+      item.textContent = value;
+      byId('assessmentNotes').appendChild(item);
+    }
+
+    function renderAssessment(data) {
+      const assessment = data.assessment;
+      const confidence = byId('assessmentConfidence');
+      confidence.className = `confidence ${assessment.confidence}`;
+      confidence.textContent = `${assessment.confidence} confidence`;
+      text('assessmentObservation', `${assessment.observationWindow} | ${assessment.skuCountEvaluated} regional SKUs evaluated`);
+      byId('assessmentRecommendations').replaceChildren();
+
+      for (const recommendation of assessment.recommendations || []) {
+        const card = document.createElement('article');
+        card.className = 'recommendation';
+        const heading = document.createElement('h4');
+        heading.textContent = recommendation.label;
+        const purpose = document.createElement('div');
+        purpose.className = 'meta';
+        purpose.textContent = recommendation.purpose;
+        const sku = document.createElement('div');
+        sku.className = 'sku';
+        sku.textContent = recommendation.sku?.name || 'No matching SKU';
+        const capacity = document.createElement('div');
+        capacity.className = 'meta';
+        capacity.textContent = recommendation.sku
+          ? `${recommendation.sku.vCpus} vCPU | ${recommendation.sku.memoryGb} GB RAM | Requires ${recommendation.requiredVCpus} vCPU / ${recommendation.requiredMemoryGb} GB`
+          : recommendation.message;
+        const features = document.createElement('div');
+        features.className = 'meta';
+        features.textContent = recommendation.sku
+          ? `${recommendation.sku.premiumIo ? 'Premium disk capable' : 'Premium disk not reported'} | ${recommendation.sku.acceleratedNetworking ? 'Accelerated networking' : 'Standard networking'}`
+          : '';
+        card.append(heading, purpose, sku, capacity, features);
+        byId('assessmentRecommendations').appendChild(card);
+      }
+
+      byId('assessmentNotes').replaceChildren();
+      if (assessment.missingTelemetry?.length) {
+        addAssessmentNote(`Missing inputs: ${assessment.missingTelemetry.join(', ')}. Conservative capacity fallbacks were used.`);
+      }
+      if (assessment.storagePlanning?.requiredCapacityGb) {
+        addAssessmentNote(`Plan at least ${assessment.storagePlanning.requiredCapacityGb} GB of managed disk capacity. ${assessment.storagePlanning.note}`);
+      } else {
+        addAssessmentNote(assessment.storagePlanning.note);
+      }
+      for (const assumption of assessment.assumptions || []) addAssessmentNote(assumption);
+      byId('assessmentStatus').classList.add('hidden');
+      byId('assessmentResults').classList.remove('hidden');
+    }
+
+    async function runVmAssessment() {
+      if (!state.selectedId) return;
+      const button = byId('runAssessment');
+      const region = byId('assessmentRegion').value;
+      const headroom = byId('assessmentHeadroom').value;
+      button.disabled = true;
+      button.textContent = 'Assessing...';
+      byId('assessmentResults').classList.add('hidden');
+      byId('assessmentStatus').classList.remove('hidden');
+      text('assessmentStatus', 'Discovering subscription-visible VM SKUs and calculating capacity fits...');
+      try {
+        const url = `/api/operations/servers/${state.selectedId}/vm-assessment?region=${encodeURIComponent(region)}&headroom=${encodeURIComponent(headroom)}`;
+        const response = await fetch(url, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        renderAssessment(data);
+      } catch (exception) {
+        text('assessmentStatus', exception.message);
+      } finally {
+        button.disabled = state.targetRegions.length === 0;
+        button.textContent = 'Assess VM SKUs';
+      }
+    }
+
+    async function selectServer(key, scroll = true) {
+      // Detail is fetched on demand from the server rather than relying on the row already
+      // being present in browser memory -- the browser never holds the full 50,000-row set.
+      state.selectedId = key;
+      try {
+        const response = await fetch(`/api/operations/servers/${key}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        const server = data.server;
+        state.selectedDetail = server;
+        text('detailName', server.name);
+        text('detailSubtitle', `${server.resourceGroup || 'Unknown resource group'} | ${server.location || 'Unknown location'}`);
+        renderPie('cpu', server.cpuPercent);
+        renderPie('memory', server.memoryPercent);
+        const diskFree = metricValue(server.diskFreePercent);
+        renderPie('disk', diskFree === null ? null : 100 - diskFree);
+        byId('detailFacts').replaceChildren();
+        addFact('Health', `${server.health[0].toUpperCase()}${server.health.slice(1)}`);
+        addFact('Arc status', server.arcStatus);
+        addFact('Platform', server.platform);
+        addFact('OS image', server.osSku || server.osName);
+        addFact('OS version / build', server.osVersion);
+        addFact('Arc agent version', server.agentVersion);
+        addFact('Resource group', server.resourceGroup);
+        addFact('Azure location', server.location);
+        addFact('Last heartbeat', server.lastHeartbeat ? new Date(server.lastHeartbeat).toLocaleString() : 'No telemetry');
+        addFact('Active alerts', server.activeAlerts);
+        addFact('Pending updates', server.pendingUpdates);
+        addFact('Security / critical updates', `${server.securityUpdates || 0} security / ${server.criticalUpdates || 0} critical`);
+        addFact('Reboot pending', server.rebootPending ? 'Yes' : 'No');
+        addFact('Disk I/O', diskIo(server.diskIops, server.diskBytesPerSec));
+        addFact('Disk read operations', iops(server.diskReadIops));
+        addFact('Disk write operations', iops(server.diskWriteIops));
+        addFact('Disk read throughput', network(server.diskReadBytesPerSec));
+        addFact('Disk write throughput', network(server.diskWriteBytesPerSec));
+        addFact('Average disk read latency', milliseconds(server.diskReadLatencyMs));
+        addFact('Average disk write latency', milliseconds(server.diskWriteLatencyMs));
+        addFact('Current disk queue length', metricValue(server.diskQueueLength)?.toFixed(1) ?? '-');
+        addFact('Network throughput', network(server.networkBytesPerSec));
+        addFact('Lifecycle', server.isWindowsServer ? lifecycleLabel(server.lifecycleState) : 'Not applicable');
+        byId('monitorWithAi').href = `/assistant.html?server=${encodeURIComponent(server.key)}`;
+        populateAssessmentRegions(server.location);
+        byId('assessmentResults').classList.add('hidden');
+        byId('assessmentStatus').classList.remove('hidden');
+        text('assessmentStatus', 'Select a target region and run an assessment.');
+        byId('detailPanel').classList.remove('hidden');
+        renderTable();
+        if (scroll) byId('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+      }
+    }
+
+    function collapseDetail() {
+      state.selectedId = null;
+      state.selectedDetail = null;
+      byId('detailPanel').classList.add('hidden');
+      renderTable();
+    }
+
+    function lifecycleLabel(state) {
+      return {
+        unsupported: 'Unsupported',
+        'esu-ending': 'ESU ending',
+        'approaching-eol': 'Approaching EOL',
+        supported: 'Supported',
+        unknown: 'Review required'
+      }[state] || state;
+    }
+
+    function updateSortHeaders() {
+      document.querySelectorAll('#managedHeaders th').forEach(header => {
+        const button = header.querySelector('.sort-button');
+        const selected = button.dataset.sortKey === state.sortKey;
+        header.setAttribute('aria-sort', selected ? state.sortDirection : 'none');
+        button.querySelector('.sort-indicator').textContent = selected
+          ? (state.sortDirection === 'ascending' ? '▲' : '▼')
+          : '';
+      });
+    }
+
+    function setSort(key) {
+      if (state.sortKey === key) {
+        state.sortDirection = state.sortDirection === 'ascending' ? 'descending' : 'ascending';
+      } else {
+        state.sortKey = key;
+        state.sortDirection = 'ascending';
+      }
+      updateSortHeaders();
+      resetPaging();
+      loadServerPage();
+    }
+
+    function populateInventoryFilters(facets) {
+      const updateSelect = (id, values, defaultLabel) => {
+        const select = byId(id);
+        const selected = select.value;
+        select.replaceChildren(new Option(defaultLabel, ''));
+        values.forEach(value => select.add(new Option(value, value)));
+        if (values.includes(selected)) select.value = selected;
+      };
+      updateSelect('resourceGroupFilter', facets?.resourceGroups || [], 'All resource groups');
+      updateSelect('locationFilter', facets?.locations || [], 'All locations');
+    }
+
+    function resetPaging() {
+      state.cursor = '';
+      state.previousCursors = [];
+    }
+
+    function renderLifecycleRows(servers) {
+      const body = byId('lifecycleRows');
+      body.replaceChildren();
+      if (!servers.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 9;
+        cell.className = 'empty';
+        cell.textContent = 'No Windows servers currently require ESU or near-term lifecycle action';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+      for (const server of servers) {
+        const row = document.createElement('tr');
+        addCell(row, server.name);
+        addCell(row, server.osSku || server.windowsRelease);
+        addCell(row, server.osVersion);
+        const stateCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = `lifecycle-badge ${server.lifecycleState}`;
+        badge.textContent = lifecycleLabel(server.lifecycleState);
+        stateCell.appendChild(badge);
+        row.appendChild(stateCell);
+        addCell(row, server.supportEnd || 'Unknown');
+        addCell(row, server.esuEnd || 'Not applicable');
+        addCell(row, server.recommendedTarget || '-');
+        addCell(row, server.lifecycleAction);
+        addCell(row, server.resourceGroup);
+        body.appendChild(row);
+      }
+    }
+
+    async function loadLifecycleRows() {
+      // Bounded, server-side "at risk" rollup instead of scanning every server in the browser.
+      try {
+        const response = await fetch('/api/operations/servers?lifecycleState=at-risk&sort=name&direction=ascending&pageSize=100', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) return;
+        text('lifecycleShown', `${data.page.total} servers require lifecycle action${data.page.total > data.page.returned ? ` (showing first ${data.page.returned})` : ''}`);
+        renderLifecycleRows(data.servers);
+      } catch { /* Lifecycle rollup is supplementary; summary cards remain authoritative. */ }
+    }
+
+    function renderTable() {
+      text('serverRange', state.total
+        ? `${state.previousCursors.length * PAGE_SIZE + 1}-${state.previousCursors.length * PAGE_SIZE + state.servers.length} of ${state.total.toLocaleString()} nodes`
+        : '0 of 0 nodes');
+      byId('serverPrev').disabled = state.previousCursors.length === 0;
+      byId('serverNext').disabled = !state.hasNext;
+
+      const body = byId('serverRows');
+      body.replaceChildren();
+
+      if (!state.servers.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 13;
+        cell.className = 'empty';
+        cell.textContent = 'No servers match the current filters';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+
+      for (const server of state.servers) {
+        const row = document.createElement('tr');
+        row.className = `clickable${state.selectedId === server.key ? ' selected' : ''}`;
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `View operational details for ${server.name}`);
+        addCell(row, server.name);
+
+        const healthCell = document.createElement('td');
+        const healthName = server.health;
+        const healthBadge = document.createElement('span');
+        healthBadge.className = `health ${healthName}`;
+        healthBadge.innerHTML = `<span class="dot"></span>${healthName[0].toUpperCase()}${healthName.slice(1)}`;
+        healthCell.appendChild(healthBadge);
+        row.appendChild(healthCell);
+
+        addCell(row, server.osType === 'windows' ? 'Windows' : 'Linux');
+        metricCell(row, server.cpuPercent);
+        metricCell(row, server.memoryPercent);
+        metricCell(row, server.diskFreePercent, true);
+        addCell(row, diskIo(server.diskIops, server.diskBytesPerSec));
+        addCell(row, network(server.networkBytesPerSec));
+        addCell(row, server.activeAlerts, server.activeAlerts ? 'alert-count' : '');
+        addCell(row, server.pendingUpdates, server.pendingUpdates ? 'update-count' : '');
+        addCell(row, server.lastHeartbeat ? new Date(server.lastHeartbeat).toLocaleString() : 'No telemetry');
+        addCell(row, server.resourceGroup);
+        addCell(row, server.location);
+        row.addEventListener('click', () => selectServer(server.key));
+        row.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectServer(server.key);
+          }
+        });
+        body.appendChild(row);
+      }
+    }
+
+    function renderRank(id, entries, format) {
+      const list = byId(id);
+      list.replaceChildren();
+      if (!entries || !entries.length) {
+        const item = document.createElement('li');
+        item.className = 'empty';
+        item.textContent = 'No telemetry available';
+        list.appendChild(item);
+        return;
+      }
+      for (const entry of entries) {
+        const item = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'rank-name';
+        name.textContent = entry.name;
+        const metric = document.createElement('span');
+        metric.className = 'rank-value';
+        metric.textContent = format(entry.value);
+        item.append(name, metric);
+        list.appendChild(item);
+      }
+    }
+
+    function renderSummary(summary) {
+      // Every summary card, ranked panel, and lifecycle count is computed server-side once per
+      // refresh from the complete fleet -- the browser only ever renders the aggregate.
+      text('total', summary.total.toLocaleString());
+      text('upTotal', summary.up.toLocaleString());
+      text('warningTotal', summary.warning.toLocaleString());
+      text('downTotal', summary.down.toLocaleString());
+      text('alertTotal', summary.activeAlerts.toLocaleString());
+      text('updateTotal', summary.pendingUpdates.toLocaleString());
+      text('averageCpu', summary.averageCpuPercent === null ? '-' : `${summary.averageCpuPercent}%`);
+      text('averageMemory', summary.averageMemoryPercent === null ? '-' : `${summary.averageMemoryPercent}%`);
+      text('coreTotal', summary.totalCpuCores.toLocaleString());
+      text('memoryTotal', capacity(summary.totalMemoryBytes));
+      text('storageTotal', capacity(summary.totalStorageBytes));
+
+      renderRank('topCpu', summary.topCpu, percent);
+      renderRank('topMemory', summary.topMemory, percent);
+      renderRank('lowDisk', summary.lowDisk, percent);
+      renderRank('topAlerts', summary.topAlerts, value => `${value} alert${value === 1 ? '' : 's'}`);
+
+      const lifecycle = summary.lifecycle || {};
+      text('unsupportedTotal', (lifecycle.unsupported || 0).toLocaleString());
+      text('esuEndingTotal', (lifecycle['esu-ending'] || 0).toLocaleString());
+      text('eolTotal', (lifecycle['approaching-eol'] || 0).toLocaleString());
+      text('supportedWindowsTotal', (lifecycle.supported || 0).toLocaleString());
+
+      populateInventoryFilters(summary.facets);
+    }
+
+    function showLoading(initialLoad) {
+      const startedAt = Date.now();
+      const updateMessage = () => {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        text('loadingMessage', initialLoad
+          ? `Loading Azure inventory and workspace telemetry for up to 50,000 servers. The first load can take a minute or more. Keep this page open. (${elapsed}s)`
+          : `Refreshing Azure operations data... (${elapsed}s)`);
+      };
+      updateMessage();
+      byId('loading').classList.remove('hidden');
+      loadingTimer = setInterval(updateMessage, 1000);
+    }
+
+    function hideLoading() {
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refresh, interval);
+    }
+
+    function buildServerQuery(cursor) {
+      const params = new URLSearchParams({
+        pageSize: String(PAGE_SIZE), sort: state.sortKey, direction: state.sortDirection
+      });
+      if (state.search) params.set('search', state.search);
+      if (state.healthFilter) params.set('health', state.healthFilter);
+      if (state.resourceGroupFilter) params.set('resourceGroup', state.resourceGroupFilter);
+      if (state.locationFilter) params.set('location', state.locationFilter);
+      if (cursor) params.set('cursor', cursor);
+      return params.toString();
+    }
+
+    async function loadServerPage(cursor = '') {
+      const response = await fetch(`/api/operations/servers?${buildServerQuery(cursor)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (response.status === 409 && data.error && data.error.startsWith('cursor_')) {
+        // The cursor is stale relative to the latest snapshot/filters -- restart from page 1.
+        resetPaging();
+        return loadServerPage('');
+      }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      state.servers = data.servers || [];
+      state.total = data.page.total;
+      state.hasNext = data.page.hasNext;
+      state.nextCursor = data.page.nextCursor;
+      state.generationId = data.generationId;
+      if (state.selectedId && !state.servers.some(server => server.key === state.selectedId)) {
+        state.selectedId = null;
+        state.selectedDetail = null;
+        byId('detailPanel').classList.add('hidden');
+      }
+      renderTable();
+      return data;
+    }
+
+    async function goToNextPage() {
+      if (!state.hasNext || !state.nextCursor) return;
+      state.previousCursors.push(state.cursor);
+      state.cursor = state.nextCursor;
+      await loadServerPage(state.cursor);
+    }
+
+    async function goToPreviousPage() {
+      if (!state.previousCursors.length) return;
+      state.cursor = state.previousCursors.pop();
+      await loadServerPage(state.cursor);
+    }
+
+    async function refresh() {
+      // The server API handles Azure authentication, snapshotting, and caching; this page only
+      // renders bounded, already-aggregated JSON responses.
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const button = byId('refresh');
+      const error = byId('error');
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      error.classList.add('hidden');
+      const initialLoad = state.generationId === null;
+      showLoading(initialLoad);
+
+      try {
+        const summaryResponse = await fetch('/api/operations/summary', { cache: 'no-store' });
+        const summaryData = await summaryResponse.json();
+        if (!summaryResponse.ok) {
+          if (summaryResponse.status === 503) {
+            text('loadingMessage', 'Initial data load is in progress on the server. Retrying shortly...');
+            setTimeout(refresh, 2000);
+            return;
+          }
+          throw new Error(summaryData.error || `Request failed (${summaryResponse.status})`);
+        }
+
+        text('account', `${summaryData.account.subscription} | ${summaryData.account.user}`);
+        text('updated', `Updated ${new Date(summaryData.generatedAt).toLocaleString()} | Azure Resource Graph inventory`);
+        if (summaryData.workspaceErrors?.length) {
+          error.textContent = summaryData.workspaceErrors.join(' | ');
+          error.classList.remove('hidden');
+        }
+        renderSummary(summaryData.summary);
+        state.targetRegions = summaryData.targetRegions || [];
+        populateAssessmentRegions();
+        resetPaging();
+        await loadServerPage('');
+        loadLifecycleRows();
+      } catch (exception) {
+        error.textContent = exception.message;
+        error.classList.remove('hidden');
+      } finally {
+        hideLoading();
+        refreshInProgress = false;
+        button.disabled = false;
+        button.textContent = 'Refresh Now';
+      }
+    }
+
+    function applyFiltersFromControls() {
+      state.search = byId('serverSearch').value.trim();
+      state.healthFilter = byId('healthFilter').value;
+      state.resourceGroupFilter = byId('resourceGroupFilter').value;
+      state.locationFilter = byId('locationFilter').value;
+      resetPaging();
+      loadServerPage().catch(exception => {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+      });
+    }
+
+    async function logout() {
+      // Logout revokes Azure CLI state and stops the local server after this response completes.
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+        clearInterval(refreshTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+        button.disabled = false;
+      }
+    }
+
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('collapseDetail').addEventListener('click', collapseDetail);
+    byId('runAssessment').addEventListener('click', runVmAssessment);
+    byId('serverSearch').addEventListener('input', () => {
+      // Debounced so each keystroke does not trigger its own server round trip.
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(applyFiltersFromControls, 350);
+    });
+    byId('healthFilter').addEventListener('change', applyFiltersFromControls);
+    byId('resourceGroupFilter').addEventListener('change', applyFiltersFromControls);
+    byId('locationFilter').addEventListener('change', applyFiltersFromControls);
+    byId('serverPrev').addEventListener('click', goToPreviousPage);
+    byId('serverNext').addEventListener('click', goToNextPage);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    document.querySelectorAll('#managedHeaders .sort-button').forEach(button => {
+      button.addEventListener('click', () => setSort(button.dataset.sortKey));
+    });
+    configureRefreshInterval();
+    refresh();
+  </script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+{{- include "arc-dashboard.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arc-dashboard.fullname" . }}
+  labels:
+    {{- include "arc-dashboard.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "arc-dashboard.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "arc-dashboard.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dashboard
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "arc-dashboard.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboard
+          image: {{ include "arc-dashboard.image" .Values.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "arc-dashboard.fullname" . }}
+          ports:
+            - name: dashboard
+              containerPort: {{ .Values.dashboard.port }}
+              protocol: TCP
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources.dashboard | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - pwsh
+                - -NoProfile
+                - -NonInteractive
+                - -Command
+                - >-
+                  try { $r = Invoke-WebRequest -UseBasicParsing
+                  http://127.0.0.1:{{ .Values.dashboard.port }}/health/live
+                  -TimeoutSec {{ .Values.probes.dashboard.startup.timeoutSeconds }};
+                  if ($r.StatusCode -eq 200) { exit 0 }; exit 1 } catch { exit 1 }
+            periodSeconds: {{ .Values.probes.dashboard.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.dashboard.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.dashboard.startup.failureThreshold }}
+          livenessProbe:
+            exec:
+              command:
+                - pwsh
+                - -NoProfile
+                - -NonInteractive
+                - -Command
+                - >-
+                  try { $r = Invoke-WebRequest -UseBasicParsing
+                  http://127.0.0.1:{{ .Values.dashboard.port }}/health/live
+                  -TimeoutSec {{ .Values.probes.dashboard.liveness.timeoutSeconds }};
+                  if ($r.StatusCode -eq 200) { exit 0 }; exit 1 } catch { exit 1 }
+            initialDelaySeconds: {{ .Values.probes.dashboard.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.dashboard.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.dashboard.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.dashboard.liveness.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - pwsh
+                - -NoProfile
+                - -NonInteractive
+                - -Command
+                - >-
+                  try { $r = Invoke-WebRequest -UseBasicParsing
+                  http://127.0.0.1:{{ .Values.dashboard.port }}/health/ready
+                  -TimeoutSec {{ .Values.probes.dashboard.readiness.timeoutSeconds }};
+                  if ($r.StatusCode -eq 200) { exit 0 }; exit 1 } catch { exit 1 }
+            initialDelaySeconds: {{ .Values.probes.dashboard.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.dashboard.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.dashboard.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.dashboard.readiness.failureThreshold }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/arc-dashboard
+            - name: dashboard-tmp
+              mountPath: /tmp
+            - name: azure-identity-token
+              mountPath: /var/run/secrets/azure/tokens
+              readOnly: true
+        - name: oauth2-proxy
+          image: {{ include "arc-dashboard.image" .Values.oauth2Proxy.image | quote }}
+          imagePullPolicy: {{ .Values.oauth2Proxy.image.pullPolicy }}
+          args:
+            - --alpha-config=/etc/oauth2-proxy/alpha.yaml
+            {{- with .Values.oauth2Proxy.extraArgs }}
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "arc-dashboard.fullname" . }}
+          env:
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2Proxy.existingSecret.name }}
+                  key: {{ .Values.oauth2Proxy.existingSecret.cookieSecretKey }}
+          ports:
+            - name: proxy
+              containerPort: 4180
+              protocol: TCP
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources.oauth2Proxy | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: proxy
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.probes.oauth2Proxy.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.oauth2Proxy.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.oauth2Proxy.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.oauth2Proxy.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: proxy
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.probes.oauth2Proxy.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.oauth2Proxy.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.oauth2Proxy.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.oauth2Proxy.failureThreshold }}
+          volumeMounts:
+            - name: oauth2-proxy-tmp
+              mountPath: /tmp
+            - name: oauth2-proxy-config
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+            - name: oauth2-proxy-secret
+              mountPath: /etc/oauth2-proxy-secret
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "arc-dashboard.pvcName" . }}
+        - name: dashboard-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.emptyDir.tmpSizeLimit }}
+        - name: oauth2-proxy-tmp
+          emptyDir:
+            sizeLimit: {{ .Values.emptyDir.tmpSizeLimit }}
+        - name: oauth2-proxy-config
+          configMap:
+            name: {{ include "arc-dashboard.fullname" . }}
+            items:
+              - key: oauth2-proxy-alpha.yaml
+                path: alpha.yaml
+        - name: oauth2-proxy-secret
+          secret:
+            secretName: {{ .Values.oauth2Proxy.existingSecret.name }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.oauth2Proxy.existingSecret.clientSecretKey }}
+                path: client-secret
+        - name: azure-identity-token
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken:
+                  path: azure-identity-token
+                  audience: {{ .Values.azureIdentity.tokenAudience | quote }}
+                  expirationSeconds: {{ .Values.azureIdentity.tokenExpirationSeconds }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc Deployment Status</title>
+  <style>
+    /* Deployment coverage view: shared dashboard styling with compact installation indicators. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+      --purple: #a48afb;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1180px;
+      background: linear-gradient(180deg, #071019, var(--bg) 260px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    main { width: min(1740px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 44px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    h1 { margin: 0 0 5px; font-size: 28px; font-weight: 650; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    .subtitle, .meta { color: var(--muted); }
+    .meta { margin-top: 3px; font-size: 12px; }
+    .actions { display: flex; width: 740px; justify-content: flex-end; gap: 10px; }
+    .actions > select, .actions > button { width: 170px; height: 40px; }
+    #refreshInterval { width: 230px; min-width: 230px; }
+    .setup-button {
+      display: inline-flex; width: 140px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); text-decoration: none; font: inherit; padding: 9px 12px;
+    }
+    .setup-button:hover { border-color: var(--cyan); }
+
+    nav.tabs { display: flex; width: min(1296px, calc(100vw - 40px)); gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    nav.tabs a {
+      display: inline-flex;
+      width: 156px;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    nav.tabs a:hover { border-color: var(--blue); color: var(--text); }
+    nav.tabs a.active { background: var(--blue); border-color: var(--blue); color: #071019; }
+
+    input, select, button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      padding: 9px 12px;
+    }
+    input { width: 270px; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--blue); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .card {
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--blue);
+      border-radius: 7px;
+      background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    }
+    .card.good { border-top-color: var(--green); }
+    .card.purple { border-top-color: var(--purple); }
+    .card .label { color: var(--muted); font-size: 12px; }
+    .card .value { margin-top: 5px; font-size: 24px; font-weight: 700; }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .legend span { display: inline-flex; gap: 7px; align-items: center; }
+
+    .table-panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+    .detail-panel {
+      margin-bottom: 18px;
+      overflow: hidden;
+      border: 1px solid var(--blue);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+    .detail-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 48px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(70,164,232,.06);
+    }
+    .detail-title h2 { font-size: 18px; }
+    .detail-facts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 10px;
+      padding: 14px;
+    }
+    .detail-fact { padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
+    .detail-fact .label { color: var(--muted); font-size: 11px; }
+    .detail-fact .value { margin-top: 4px; overflow-wrap: anywhere; font-size: 13px; font-weight: 650; }
+    .collapse-button { padding: 7px 11px; color: var(--muted); }
+    .table-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 46px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.015);
+    }
+    .table-title-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .table-title-actions select { width: 180px; height: 34px; padding: 6px 10px; }
+    .table-title-actions button { height: 34px; padding: 6px 12px; }
+    #installerHelper { border-color: var(--blue); color: #a9d8f7; }
+    #resourceGroupFilter { width: 250px; }
+    .table-title-actions .meta { min-width: 120px; text-align: right; }
+    .table-wrap { max-height: 680px; overflow: auto; }
+    table { width: 1715px; min-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 11px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(41,58,71,.62); }
+    th { position: sticky; top: 0; z-index: 1; background: #16242f; color: #b8c8d3; font-weight: 600; }
+    th[aria-sort] { padding: 0; }
+    td { overflow: hidden; text-overflow: ellipsis; }
+    tbody tr:hover { background: rgba(70,164,232,.055); }
+    tbody tr.clickable { cursor: pointer; }
+    tbody tr.clickable:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+    tbody tr.selected { background: rgba(70,164,232,.1); }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .sort-button {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 11px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--text); background: rgba(70,164,232,.09); outline: none; }
+    .sort-indicator { width: 10px; color: var(--blue); text-align: center; }
+    .resizable-header { position: sticky; }
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      z-index: 3;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      touch-action: none;
+    }
+    .resize-handle::after {
+      content: "";
+      position: absolute;
+      top: 20%;
+      bottom: 20%;
+      left: 3px;
+      width: 1px;
+      background: var(--line);
+    }
+    .resize-handle:hover::after, .resize-handle.dragging::after { background: var(--blue); }
+
+    .installation {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 600;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 0 3px rgba(240,82,82,.12);
+    }
+    .installation.installed .status-dot, .status-dot.installed {
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(49,196,141,.12);
+    }
+    .installation.not-applicable .status-dot, .status-dot.not-applicable {
+      background: var(--blue);
+      box-shadow: 0 0 0 3px rgba(70,164,232,.12);
+    }
+    .arc-status { font-weight: 650; }
+    .arc-status.connected { color: var(--green); }
+    .arc-status.disconnected { color: var(--red); }
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      color: #b9dcf6;
+      background: rgba(70,164,232,.09);
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border: 2px solid rgba(70,164,232,.28);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+      padding: 24px; background: rgba(3,8,12,.78);
+    }
+    .modal {
+      width: min(920px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto;
+      border: 1px solid var(--blue); border-radius: 8px; background: var(--panel);
+      box-shadow: 0 24px 70px rgba(0,0,0,.5);
+    }
+    .modal-header, .modal-footer {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 16px; border-bottom: 1px solid var(--line);
+    }
+    .modal-footer { justify-content: flex-end; border-top: 1px solid var(--line); border-bottom: 0; }
+    .modal-body { padding: 16px; }
+    .helper-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .helper-field label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
+    .helper-field select, .helper-field input { width: 100%; }
+    .helper-note {
+      margin: 14px 0; padding: 11px 12px; border: 1px solid var(--line);
+      border-radius: 6px; color: var(--muted); background: var(--panel-2); font-size: 12px;
+    }
+    .helper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .helper-toolbar div { display: flex; gap: 8px; }
+    .helper-server-list { max-height: 330px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+    .helper-server {
+      display: grid; grid-template-columns: 28px minmax(180px, 1fr) 110px minmax(150px, 1fr) 120px;
+      gap: 10px; align-items: center; padding: 9px 11px; border-bottom: 1px solid rgba(41,58,71,.62);
+      font-size: 12px;
+    }
+    .helper-server:last-child { border-bottom: 0; }
+    .helper-server input { width: auto; margin: 0; }
+    .helper-server .reason { color: var(--muted); }
+    .helper-server.ineligible { opacity: .55; }
+    #downloadInstaller { border-color: var(--green); color: #9ce5ca; }
+    .hidden { display: none; }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+    .pager button { padding: 6px 12px; }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Navigation and page-local filters for deployment coverage. -->
+    <header>
+      <div>
+        <h1>Arc Deployment Status</h1>
+        <div class="subtitle" id="account">Loading Arc agent and extension inventory...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html" class="active">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout">Logout</button>
+      </div>
+    </header>
+
+    <div id="error" class="error hidden"></div>
+    <div id="loading" class="loading hidden"><span class="spinner" aria-hidden="true"></span><span id="loadingMessage"></span></div>
+
+    <!-- Coverage cards show successful extension deployment across the scoped Arc estate. -->
+    <div class="cards">
+      <div class="card"><div class="label">Arc-enabled servers</div><div class="value" id="serverTotal">-</div></div>
+      <div class="card good"><div class="label">Azure Monitor Agent</div><div class="value" id="monitorTotal">-</div></div>
+      <div class="card purple"><div class="label">Dependency Agent</div><div class="value" id="dependencyTotal">-</div></div>
+      <div class="card"><div class="label">Change Tracking</div><div class="value" id="changeTotal">-</div></div>
+      <div class="card"><div class="label">Guest Configuration</div><div class="value" id="guestTotal">-</div></div>
+      <div class="card good"><div class="label">Defender for Servers</div><div class="value" id="defenderTotal">-</div></div>
+      <div class="card"><div class="label">Update Manager</div><div class="value" id="updateTotal">-</div></div>
+      <div class="card purple"><div class="label">Custom Script</div><div class="value" id="customScriptTotal">-</div></div>
+      <div class="card"><div class="label">SQL extension</div><div class="value" id="sqlTotal">-</div></div>
+      <div class="card"><div class="label">Admin Center</div><div class="value" id="adminCenterTotal">-</div></div>
+    </div>
+
+    <div class="legend">
+      <span><i class="status-dot installed"></i>Installed and successfully provisioned</span>
+      <span><i class="status-dot"></i>Not installed or not successfully provisioned</span>
+      <span><i class="status-dot not-applicable"></i>Not applicable</span>
+    </div>
+
+    <!-- Server-name selection opens this collapsible inventory detail without leaving the page. -->
+    <section class="detail-panel hidden" id="detailPanel">
+      <div class="detail-title">
+        <div><h2 id="detailName">Server detail</h2><div class="meta" id="detailSubtitle"></div></div>
+        <button class="collapse-button" id="collapseDetail" type="button">Collapse details ▲</button>
+      </div>
+      <div class="detail-facts" id="detailFacts"></div>
+    </section>
+
+    <div class="modal-backdrop hidden" id="installerModal" role="dialog" aria-modal="true" aria-labelledby="installerTitle">
+      <section class="modal">
+        <div class="modal-header">
+          <div><h2 id="installerTitle">Agent Installer Helper</h2><div class="meta">Export only - this dashboard does not install extensions or request Azure write access.</div></div>
+          <button id="closeInstaller" type="button">Close</button>
+        </div>
+        <div class="modal-body">
+          <div class="helper-grid">
+            <div class="helper-field">
+              <label for="installerExtension">Desired extension</label>
+              <select id="installerExtension">
+                <option value="azureMonitorAgent">Azure Monitor Agent</option>
+                <option value="dependencyAgent">Dependency Agent</option>
+              </select>
+            </div>
+            <div class="helper-field">
+              <label for="installerFileName">Download file</label>
+              <input id="installerFileName" value="arc-agent-installer.sh" maxlength="80">
+            </div>
+          </div>
+          <div class="helper-note" id="installerDescription"></div>
+          <div class="helper-toolbar">
+            <strong id="installerSelection">0 servers selected</strong>
+            <div>
+              <button id="selectEligible" type="button">Select eligible on this page</button>
+              <button id="clearInstallerSelection" type="button">Clear</button>
+            </div>
+          </div>
+          <div class="helper-server-list" id="installerServers"></div>
+          <div class="helper-note">
+            The script targets only explicitly selected servers from the current 100-row page. It contains no credentials or protected settings, checks the live extension state, requires the operator to type INSTALL, submits deployments with <code>--no-wait</code>, and writes a results CSV in Cloud Shell. Azure Monitor Agent still requires a Data Collection Rule association to collect data.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="downloadInstaller" type="button">Download Cloud Shell Script</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Every capability column is sortable to quickly identify deployment gaps. -->
+    <section class="table-panel">
+      <div class="table-title">
+        <h2>Server deployment inventory</h2>
+        <div class="table-title-actions">
+          <button id="installerHelper" type="button">Agent Installer Helper</button>
+          <select id="resourceGroupFilter"><option value="">All resource groups</option></select>
+          <select id="osFilter">
+            <option value="">All operating systems</option>
+            <option value="windows">Windows</option>
+            <option value="linux">Linux</option>
+          </select>
+          <span class="meta" id="shown"></span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col id="serverColumn" style="width:220px">
+            <col id="osTypeColumn" style="width:90px">
+            <col style="width:105px">
+            <col style="width:130px">
+            <col style="width:120px">
+            <col style="width:140px">
+            <col style="width:135px">
+            <col style="width:125px">
+            <col style="width:135px">
+            <col style="width:140px">
+            <col style="width:130px">
+            <col style="width:120px">
+            <col style="width:125px">
+          </colgroup>
+          <thead id="deploymentHeaders"><tr>
+            <th class="resizable-header" aria-sort="ascending"><button class="sort-button" data-sort-key="name">Server<span class="sort-indicator">▲</span></button><span class="resize-handle" id="serverResizeHandle" role="separator" tabindex="0" aria-label="Resize Server column" aria-orientation="vertical"></span></th>
+            <th class="resizable-header" aria-sort="none"><button class="sort-button" data-sort-key="osType">OS Type<span class="sort-indicator"></span></button><span class="resize-handle" id="osTypeResizeHandle" role="separator" tabindex="0" aria-label="Resize OS Type column" aria-orientation="vertical"></span></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="arcStatus">Arc status<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="agentVersion">Arc agent version<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="sqlServer">SQL<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="azureMonitorAgent">Azure Monitor Agent<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="dependencyAgent">Dependency Agent<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="changeTracking">Change Tracking<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="guestConfiguration">Guest Configuration<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="defenderForServers">Defender for Servers<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="updateManager">Update Manager<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="customScript">Custom Script<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="adminCenter">Admin Center<span class="sort-indicator"></span></button></th>
+          </tr></thead>
+          <tbody id="serverRows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="serverPrev" type="button">◀ Previous</button>
+        <span class="meta" id="serverRange"></span>
+        <button id="serverNext" type="button">Next ▶</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // The API normalizes OS-specific extension names into stable capability booleans. Coverage
+    // cards are computed server-side across the full fleet; the table below only ever holds one
+    // bounded page (default 100 rows) of the underlying inventory.
+    const PAGE_SIZE = 100;
+    const state = {
+      servers: [], selectedId: null, sortKey: 'name', sortDirection: 'ascending',
+      resourceGroupFilter: '', osFilter: '',
+      cursor: '', nextCursor: '', previousCursors: [], total: 0, hasNext: false,
+      subscriptionId: '', installerSelectedKeys: new Set()
+    };
+    let refreshInProgress = false;
+    let loadingTimer = null;
+    let refreshTimer = null;
+    const capabilities = [
+      'sqlServer', 'azureMonitorAgent', 'dependencyAgent', 'changeTracking',
+      'guestConfiguration', 'defenderForServers', 'updateManager', 'customScript', 'adminCenter'
+    ];
+    const capabilityCardIds = {
+      azureMonitorAgent: 'monitorTotal', dependencyAgent: 'dependencyTotal', changeTracking: 'changeTotal',
+      guestConfiguration: 'guestTotal', defenderForServers: 'defenderTotal', updateManager: 'updateTotal',
+      customScript: 'customScriptTotal', sqlServer: 'sqlTotal', adminCenter: 'adminCenterTotal'
+    };
+    const installerCatalog = {
+      azureMonitorAgent: {
+        label: 'Azure Monitor Agent',
+        description: 'Installs the current Azure Monitor Agent handler for each selected server OS. A Data Collection Rule association is still required before the agent collects monitoring data.',
+        windows: { name: 'AzureMonitorWindowsAgent', publisher: 'Microsoft.Azure.Monitor', type: 'AzureMonitorWindowsAgent', settings: '' },
+        linux: { name: 'AzureMonitorLinuxAgent', publisher: 'Microsoft.Azure.Monitor', type: 'AzureMonitorLinuxAgent', settings: '' }
+      },
+      dependencyAgent: {
+        label: 'Dependency Agent',
+        description: 'Installs the Dependency Agent configured to use Azure Monitor Agent. Select servers only after planning the associated monitoring configuration.',
+        windows: { name: 'DependencyAgentWindows', publisher: 'Microsoft.Azure.Monitoring.DependencyAgent', type: 'DependencyAgentWindows', settings: '{"enableAMA":"true"}' },
+        linux: { name: 'DependencyAgentLinux', publisher: 'Microsoft.Azure.Monitoring.DependencyAgent', type: 'DependencyAgentLinux', settings: '{"enableAMA":"true"}' }
+      }
+    };
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+    const normalized = value => String(value || '').toLowerCase();
+
+    function selectedInstallerDefinition() {
+      return installerCatalog[byId('installerExtension').value] || installerCatalog.azureMonitorAgent;
+    }
+
+    function installerEligibility(server) {
+      const capability = byId('installerExtension').value;
+      const osType = normalized(server.osType);
+      if (!['windows', 'linux'].includes(osType)) return { eligible: false, reason: 'Unsupported OS' };
+      if (normalized(server.arcStatus) !== 'connected') return { eligible: false, reason: `Arc status: ${server.arcStatus || 'Unknown'}` };
+      if (server[capability]) return { eligible: false, reason: 'Already reported installed' };
+      return { eligible: true, reason: 'Eligible' };
+    }
+
+    function updateInstallerSelection() {
+      text('installerSelection', `${state.installerSelectedKeys.size} servers selected`);
+      byId('downloadInstaller').disabled = state.installerSelectedKeys.size === 0;
+    }
+
+    function renderInstallerServers() {
+      const definition = selectedInstallerDefinition();
+      text('installerDescription', definition.description);
+      const list = byId('installerServers');
+      list.replaceChildren();
+      if (!state.servers.length) {
+        const empty = document.createElement('div');
+        empty.className = 'helper-server';
+        empty.textContent = 'No servers are available on the current inventory page.';
+        list.appendChild(empty);
+      }
+      for (const server of state.servers) {
+        const eligibility = installerEligibility(server);
+        if (!eligibility.eligible) state.installerSelectedKeys.delete(server.key);
+        const row = document.createElement('label');
+        row.className = `helper-server${eligibility.eligible ? '' : ' ineligible'}`;
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.disabled = !eligibility.eligible;
+        checkbox.checked = eligibility.eligible && state.installerSelectedKeys.has(server.key);
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) state.installerSelectedKeys.add(server.key);
+          else state.installerSelectedKeys.delete(server.key);
+          updateInstallerSelection();
+        });
+        const name = document.createElement('strong');
+        name.textContent = server.name || '-';
+        const os = document.createElement('span');
+        os.textContent = server.osType || '-';
+        const resourceGroup = document.createElement('span');
+        resourceGroup.textContent = server.resourceGroup || '-';
+        const reason = document.createElement('span');
+        reason.className = 'reason';
+        reason.textContent = eligibility.reason;
+        row.append(checkbox, name, os, resourceGroup, reason);
+        list.appendChild(row);
+      }
+      updateInstallerSelection();
+    }
+
+    function openInstaller() {
+      state.installerSelectedKeys.clear();
+      renderInstallerServers();
+      byId('installerModal').classList.remove('hidden');
+      byId('installerExtension').focus();
+    }
+
+    function closeInstaller() {
+      byId('installerModal').classList.add('hidden');
+      byId('installerHelper').focus();
+    }
+
+    function shellQuote(value) {
+      return `'${String(value ?? '').replace(/'/g, `'\"'\"'`)}'`;
+    }
+
+    function buildInstallerScript(servers, definition) {
+      const rows = servers.map(server =>
+        shellQuote([server.resourceGroup, server.name, server.location, normalized(server.osType)].join('\t'))
+      ).join('\n');
+      const generatedAt = new Date().toISOString();
+      return `#!/usr/bin/env bash
+set -u -o pipefail
+
+# Azure Arc Agent Installer Helper
+# Generated: ${generatedAt}
+# Extension: ${definition.label}
+# Targets: ${servers.length}
+# Review this file before running it in Azure Portal Cloud Shell.
+
+SUBSCRIPTION_ID=${shellQuote(state.subscriptionId)}
+RESULTS_FILE="arc-extension-results-$(date -u +%Y%m%dT%H%M%SZ).csv"
+
+csv_value() {
+  local value="$1"
+  value="\${value//$'\\r'/ }"
+  value="\${value//$'\\n'/ }"
+  if [[ "$value" == [=+@-]* ]]; then value="'$value"; fi
+  value="\${value//\\"/\\"\\"}"
+  printf '"%s"' "$value"
+}
+
+write_result() {
+  { csv_value "$1"; printf ','; csv_value "$2"; printf ','; csv_value "$3"; printf ','; csv_value "$4"; printf ','; csv_value "$5"; printf '\\n'; } >> "$RESULTS_FILE"
+}
+
+if ! az account show --output none 2>/dev/null; then
+  echo "Azure Cloud Shell is not signed in." >&2
+  exit 1
+fi
+if ! az account set --subscription "$SUBSCRIPTION_ID"; then
+  echo "Unable to select subscription $SUBSCRIPTION_ID." >&2
+  exit 1
+fi
+if ! az extension add --name connectedmachine --upgrade --only-show-errors; then
+  echo "Unable to install or update the Azure CLI connectedmachine extension." >&2
+  exit 1
+fi
+
+SERVER_ROWS=(
+${rows}
+)
+
+echo "Subscription: $SUBSCRIPTION_ID"
+echo "Extension: ${definition.label}"
+echo "Target servers: \${#SERVER_ROWS[@]}"
+read -r -p "Type INSTALL to submit these extension deployments: " confirmation
+if [[ "$confirmation" != "INSTALL" ]]; then
+  echo "No deployments submitted."
+  exit 0
+fi
+
+printf '"resourceGroup","machineName","osType","status","detail"\\n' > "$RESULTS_FILE"
+for row in "\${SERVER_ROWS[@]}"; do
+  IFS=$'\\t' read -r resource_group machine_name location os_type <<< "$row"
+  case "$os_type" in
+    windows)
+      extension_name=${shellQuote(definition.windows.name)}
+      publisher=${shellQuote(definition.windows.publisher)}
+      extension_type=${shellQuote(definition.windows.type)}
+      settings=${shellQuote(definition.windows.settings)}
+      ;;
+    linux)
+      extension_name=${shellQuote(definition.linux.name)}
+      publisher=${shellQuote(definition.linux.publisher)}
+      extension_type=${shellQuote(definition.linux.type)}
+      settings=${shellQuote(definition.linux.settings)}
+      ;;
+    *)
+      write_result "$resource_group" "$machine_name" "$os_type" "skipped" "Unsupported operating system"
+      continue
+      ;;
+  esac
+
+  echo "Checking $machine_name..."
+  if az connectedmachine extension show --subscription "$SUBSCRIPTION_ID" --resource-group "$resource_group" --machine-name "$machine_name" --name "$extension_name" --output none 2>/dev/null; then
+    echo "  Skipped: $extension_name is already installed."
+    write_result "$resource_group" "$machine_name" "$os_type" "skipped" "Extension already exists"
+    continue
+  fi
+
+  command=(az connectedmachine extension create
+    --subscription "$SUBSCRIPTION_ID"
+    --resource-group "$resource_group"
+    --machine-name "$machine_name"
+    --location "$location"
+    --name "$extension_name"
+    --publisher "$publisher"
+    --type "$extension_type"
+    --enable-auto-upgrade true
+    --auto-upgrade-minor-version true
+    --no-wait true
+    --only-show-errors
+    --output none)
+  if [[ -n "$settings" ]]; then command+=(--settings "$settings"); fi
+
+  error_file=$(mktemp)
+  if "\${command[@]}" 2>"$error_file"; then
+    echo "  Submitted."
+    write_result "$resource_group" "$machine_name" "$os_type" "submitted" "Azure accepted the deployment request"
+  else
+    error_message=$(tr '\\r\\n' '  ' < "$error_file")
+    echo "  Failed: $error_message" >&2
+    write_result "$resource_group" "$machine_name" "$os_type" "failed" "$error_message"
+  fi
+  rm -f "$error_file"
+done
+
+echo "Submission results: $RESULTS_FILE"
+`;
+    }
+
+    function downloadInstallerScript() {
+      const definition = selectedInstallerDefinition();
+      const servers = state.servers.filter(server => state.installerSelectedKeys.has(server.key) && installerEligibility(server).eligible);
+      if (!servers.length) {
+        reportError(new Error('Select at least one eligible server before downloading the script.'));
+        return;
+      }
+      if (!state.subscriptionId) {
+        reportError(new Error('The subscription context is unavailable. Refresh the page and try again.'));
+        return;
+      }
+      let fileName = byId('installerFileName').value.trim().replace(/[^a-zA-Z0-9._-]/g, '-');
+      if (!fileName) fileName = 'arc-agent-installer.sh';
+      if (!fileName.toLowerCase().endsWith('.sh')) fileName += '.sh';
+      const blob = new Blob([buildInstallerScript(servers, definition)], { type: 'text/x-shellscript;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function isApplicable(server, key) {
+      return key !== 'adminCenter' || normalized(server.osType) === 'windows';
+    }
+
+    function renderSummary(summary) {
+      text('serverTotal', summary.total.toLocaleString());
+      const byCapability = {};
+      for (const entry of summary.deployment || []) { byCapability[entry.capability] = entry; }
+      for (const capability of capabilities) {
+        const entry = byCapability[capability];
+        const cardId = capabilityCardIds[capability];
+        if (!entry || !cardId) continue;
+        const percentValue = entry.applicable ? Math.round(entry.installed * 100 / entry.applicable) : 0;
+        text(cardId, `${entry.installed.toLocaleString()} / ${entry.applicable.toLocaleString()} (${percentValue}%)`);
+      }
+    }
+
+    function populateResourceGroupFilter(facets) {
+      const select = byId('resourceGroupFilter');
+      const selected = select.value;
+      const resourceGroups = facets?.resourceGroups || [];
+      select.replaceChildren(new Option('All resource groups', ''));
+      resourceGroups.forEach(resourceGroup => select.add(new Option(resourceGroup, resourceGroup)));
+      if (resourceGroups.includes(selected)) select.value = selected;
+    }
+
+    function addCell(row, content) {
+      const cell = document.createElement('td');
+      cell.textContent = content || '-';
+      row.appendChild(cell);
+    }
+
+    function addFact(label, content) {
+      const fact = document.createElement('div');
+      fact.className = 'detail-fact';
+      const labelElement = document.createElement('div');
+      labelElement.className = 'label';
+      labelElement.textContent = label;
+      const valueElement = document.createElement('div');
+      valueElement.className = 'value';
+      valueElement.textContent = content || '-';
+      fact.append(labelElement, valueElement);
+      byId('detailFacts').appendChild(fact);
+    }
+
+    async function selectServer(key) {
+      // Detail is fetched on demand -- the browser never needs the full inventory in memory.
+      state.selectedId = key;
+      try {
+        const response = await fetch(`/api/operations/servers/${key}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        const server = data.server;
+        text('detailName', server.name);
+        text('detailSubtitle', `${server.resourceGroup || 'Unknown resource group'} | ${server.location || 'Unknown location'}`);
+        byId('detailFacts').replaceChildren();
+        addFact('OS type', server.osType);
+        addFact('Image type', server.osSku || server.osName);
+        addFact('OS build number', server.osBuildNumber);
+        addFact('OS version', server.osVersion);
+        addFact('Resource group', server.resourceGroup);
+        addFact('Azure location', server.location);
+        addFact('Arc status', server.arcStatus);
+        addFact('Arc agent version', server.agentVersion);
+        byId('detailPanel').classList.remove('hidden');
+        renderTable();
+        byId('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (exception) {
+        reportError(exception);
+      }
+    }
+
+    function collapseDetail() {
+      state.selectedId = null;
+      byId('detailPanel').classList.add('hidden');
+      renderTable();
+    }
+
+    function addInstallationCell(row, installed, applicable) {
+      const cell = document.createElement('td');
+      const status = document.createElement('span');
+      status.className = `installation${!applicable ? ' not-applicable' : installed ? ' installed' : ''}`;
+      status.title = !applicable
+        ? 'Not applicable'
+        : installed ? 'Installed and successfully provisioned' : 'Not installed or not successfully provisioned';
+      status.setAttribute('aria-label', status.title);
+      const dot = document.createElement('span');
+      dot.className = 'status-dot';
+      dot.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.textContent = !applicable ? 'N/A' : installed ? 'Installed' : 'Not installed';
+      status.append(dot, label);
+      cell.appendChild(status);
+      row.appendChild(cell);
+    }
+
+    function updateSortHeaders() {
+      document.querySelectorAll('#deploymentHeaders th').forEach(header => {
+        const button = header.querySelector('.sort-button');
+        const active = button.dataset.sortKey === state.sortKey;
+        header.setAttribute('aria-sort', active ? state.sortDirection : 'none');
+        button.querySelector('.sort-indicator').textContent = active ? (state.sortDirection === 'ascending' ? '▲' : '▼') : '';
+      });
+    }
+
+    function setSort(key) {
+      if (state.sortKey === key) {
+        state.sortDirection = state.sortDirection === 'ascending' ? 'descending' : 'ascending';
+      } else {
+        state.sortKey = key;
+        state.sortDirection = 'ascending';
+      }
+      updateSortHeaders();
+      resetPaging();
+      loadServerPage().catch(reportError);
+    }
+
+    function resetPaging() {
+      state.cursor = '';
+      state.previousCursors = [];
+    }
+
+    function renderTable() {
+      text('serverRange', state.total
+        ? `${state.previousCursors.length * PAGE_SIZE + 1}-${state.previousCursors.length * PAGE_SIZE + state.servers.length} of ${state.total.toLocaleString()} servers`
+        : '0 of 0 servers');
+      text('shown', `${state.total.toLocaleString()} servers match the current filters`);
+      byId('serverPrev').disabled = state.previousCursors.length === 0;
+      byId('serverNext').disabled = !state.hasNext;
+
+      const rows = byId('serverRows');
+      rows.replaceChildren();
+      for (const server of state.servers) {
+        const row = document.createElement('tr');
+        row.className = `clickable${state.selectedId === server.key ? ' selected' : ''}`;
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `View deployment details for ${server.name}`);
+        addCell(row, server.name);
+        addCell(row, server.osType ? `${server.osType[0].toUpperCase()}${server.osType.slice(1)}` : '-');
+        const statusCell = document.createElement('td');
+        const status = document.createElement('span');
+        status.className = `arc-status ${normalized(server.arcStatus)}`;
+        status.textContent = server.arcStatus || 'Unknown';
+        statusCell.appendChild(status);
+        row.appendChild(statusCell);
+        addCell(row, server.agentVersion);
+        capabilities.forEach(key => addInstallationCell(row, Boolean(server[key]), isApplicable(server, key)));
+        row.addEventListener('click', () => selectServer(server.key));
+        row.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectServer(server.key);
+          }
+        });
+        rows.appendChild(row);
+      }
+    }
+
+    function buildServerQuery(cursor) {
+      const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), sort: state.sortKey, direction: state.sortDirection });
+      if (state.resourceGroupFilter) params.set('resourceGroup', state.resourceGroupFilter);
+      if (state.osFilter) params.set('osType', state.osFilter);
+      if (cursor) params.set('cursor', cursor);
+      return params.toString();
+    }
+
+    async function loadServerPage(cursor = '') {
+      const response = await fetch(`/api/operations/servers?${buildServerQuery(cursor)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (response.status === 409 && data.error && data.error.startsWith('cursor_')) {
+        resetPaging();
+        return loadServerPage('');
+      }
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      state.servers = data.servers || [];
+      state.total = data.page.total;
+      state.hasNext = data.page.hasNext;
+      state.nextCursor = data.page.nextCursor;
+      state.installerSelectedKeys.clear();
+      if (state.selectedId && !state.servers.some(server => server.key === state.selectedId)) {
+        state.selectedId = null;
+        byId('detailPanel').classList.add('hidden');
+      }
+      renderTable();
+      if (!byId('installerModal').classList.contains('hidden')) renderInstallerServers();
+      return data;
+    }
+
+    async function goToNextPage() {
+      if (!state.hasNext || !state.nextCursor) return;
+      state.previousCursors.push(state.cursor);
+      state.cursor = state.nextCursor;
+      await loadServerPage(state.cursor);
+    }
+
+    async function goToPreviousPage() {
+      if (!state.previousCursors.length) return;
+      state.cursor = state.previousCursors.pop();
+      await loadServerPage(state.cursor);
+    }
+
+    function applyFilters() {
+      state.resourceGroupFilter = byId('resourceGroupFilter').value;
+      state.osFilter = byId('osFilter').value;
+      resetPaging();
+      loadServerPage().catch(reportError);
+    }
+
+    function initColumnResize(handleId, columnId, minimumWidth) {
+      const handle = byId(handleId);
+      const column = byId(columnId);
+      const table = handle.closest('table');
+      const setWidth = width => {
+        const currentWidth = column.getBoundingClientRect().width;
+        const nextWidth = Math.max(minimumWidth, width);
+        column.style.width = `${nextWidth}px`;
+        table.style.width = `${table.getBoundingClientRect().width + nextWidth - currentWidth}px`;
+      };
+      handle.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const startX = event.clientX;
+        const startWidth = column.getBoundingClientRect().width;
+        const startTableWidth = table.getBoundingClientRect().width;
+        handle.classList.add('dragging');
+        handle.setPointerCapture(event.pointerId);
+        const resize = moveEvent => {
+          const width = Math.max(minimumWidth, startWidth + moveEvent.clientX - startX);
+          column.style.width = `${width}px`;
+          table.style.width = `${startTableWidth + width - startWidth}px`;
+        };
+        const stop = () => {
+          handle.classList.remove('dragging');
+          handle.removeEventListener('pointermove', resize);
+          handle.removeEventListener('pointerup', stop);
+          handle.removeEventListener('pointercancel', stop);
+        };
+        handle.addEventListener('pointermove', resize);
+        handle.addEventListener('pointerup', stop);
+        handle.addEventListener('pointercancel', stop);
+      });
+      handle.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        event.preventDefault();
+        setWidth(column.getBoundingClientRect().width + (event.key === 'ArrowRight' ? 10 : -10));
+      });
+    }
+
+    function showLoading() {
+      const startedAt = Date.now();
+      const initialLoad = state.servers.length === 0;
+      const updateMessage = () => {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        text('loadingMessage', initialLoad
+          ? `Loading Arc agent and extension deployment status for up to 50,000 servers. The first load can take a minute or more. Keep this page open. (${elapsed}s)`
+          : `Refreshing deployment status... (${elapsed}s)`);
+      };
+      updateMessage();
+      byId('loading').classList.remove('hidden');
+      loadingTimer = setInterval(updateMessage, 1000);
+    }
+
+    function hideLoading() {
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refresh, interval);
+    }
+
+    function reportError(exception) {
+      byId('error').textContent = exception.message;
+      byId('error').classList.remove('hidden');
+    }
+
+    async function refresh() {
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      const button = byId('refresh');
+      const error = byId('error');
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      error.classList.add('hidden');
+      showLoading();
+      try {
+        const summaryResponse = await fetch('/api/deployment/summary', { cache: 'no-store' });
+        const summaryData = await summaryResponse.json();
+        if (!summaryResponse.ok) {
+          if (summaryResponse.status === 503) { setTimeout(refresh, 2000); return; }
+          throw new Error(summaryData.error || `Request failed (${summaryResponse.status})`);
+        }
+        state.subscriptionId = summaryData.account.subscriptionId || '';
+        text('account', `${summaryData.account.subscription} | ${summaryData.account.user}`);
+        text('updated', `Updated ${new Date(summaryData.generatedAt).toLocaleString()} | Azure Resource Graph inventory`);
+        renderSummary(summaryData);
+        populateResourceGroupFilter(summaryData.facets);
+        resetPaging();
+        await loadServerPage('');
+      } catch (exception) {
+        reportError(exception);
+      } finally {
+        hideLoading();
+        refreshInProgress = false;
+        button.disabled = false;
+        button.textContent = 'Refresh Now';
+      }
+    }
+
+    async function logout() {
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+        clearInterval(refreshTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+        button.disabled = false;
+      }
+    }
+
+    document.querySelectorAll('.sort-button').forEach(button => button.addEventListener('click', () => setSort(button.dataset.sortKey)));
+    byId('resourceGroupFilter').addEventListener('change', applyFilters);
+    byId('osFilter').addEventListener('change', applyFilters);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('installerHelper').addEventListener('click', openInstaller);
+    byId('closeInstaller').addEventListener('click', closeInstaller);
+    byId('installerExtension').addEventListener('change', () => {
+      state.installerSelectedKeys.clear();
+      renderInstallerServers();
+    });
+    byId('selectEligible').addEventListener('click', () => {
+      state.installerSelectedKeys.clear();
+      state.servers.forEach(server => {
+        if (installerEligibility(server).eligible) state.installerSelectedKeys.add(server.key);
+      });
+      renderInstallerServers();
+    });
+    byId('clearInstallerSelection').addEventListener('click', () => {
+      state.installerSelectedKeys.clear();
+      renderInstallerServers();
+    });
+    byId('downloadInstaller').addEventListener('click', downloadInstallerScript);
+    byId('installerModal').addEventListener('click', event => {
+      if (event.target === byId('installerModal')) closeInstaller();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !byId('installerModal').classList.contains('hidden')) closeInstaller();
+    });
+    byId('collapseDetail').addEventListener('click', collapseDetail);
+    byId('serverPrev').addEventListener('click', goToPreviousPage);
+    byId('serverNext').addEventListener('click', goToNextPage);
+    initColumnResize('serverResizeHandle', 'serverColumn', 140);
+    initColumnResize('osTypeResizeHandle', 'osTypeColumn', 80);
+    configureRefreshInterval();
+    refresh();
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+**
+!app
+!app/**
+!entrypoint.sh
+
+# Never copy runtime authentication, configuration, or monitoring state.
+app/**/dashboard.config.dat
+app/**/dashboard.config.json
+app/**/.azure
+app/**/.azure/**
+app/**/.azure-foundry
+app/**/.azure-foundry/**
+app/**/.monitoring
+app/**/.monitoring/**
+app/**/.secrets
+app/**/.secrets/**
+app/**/.runtime
+app/**/.runtime/**
+app/**/*.log
+app/**/*.tmp
+app/**/*.bak

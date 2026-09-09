@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc Global View</title>
+  <style>
+    /* Geographic dashboard styling, including the self-contained SVG map and interactive markers. */
+    :root {
+      color-scheme: dark;
+      --bg: #091016;
+      --panel: #101a23;
+      --panel-2: #14222d;
+      --line: #293a47;
+      --text: #e8f0f5;
+      --muted: #92a4b1;
+      --green: #31c48d;
+      --yellow: #f6c344;
+      --red: #f05252;
+      --blue: #46a4e8;
+      --cyan: #41c7d9;
+      --purple: #a48afb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1100px;
+      background: linear-gradient(180deg, #071019, var(--bg) 260px);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    main { width: min(1740px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 44px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    h1 { margin: 0 0 5px; font-size: 28px; font-weight: 650; }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    .subtitle, .meta, .empty { color: var(--muted); }
+    .meta { margin-top: 3px; font-size: 12px; }
+    nav.tabs { display: flex; width: min(1296px, calc(100vw - 40px)); gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    nav.tabs a {
+      display: inline-flex; width: 156px; min-height: 36px; align-items: center; justify-content: center;
+      padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+      color: var(--muted); text-decoration: none; text-align: center; font-size: 13px; font-weight: 600;
+    }
+    nav.tabs a:hover { border-color: var(--blue); color: var(--text); }
+    nav.tabs a.active { background: var(--blue); border-color: var(--blue); color: #071019; }
+    select, button {
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); font: inherit; padding: 9px 12px;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--blue); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .header-actions { display: flex; gap: 10px; }
+    .header-actions > select, .header-actions > button { width: 170px; height: 40px; }
+    #refreshInterval { width: 230px; min-width: 230px; }
+    .setup-button {
+      display: inline-flex; width: 140px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+      color: var(--text); text-decoration: none; font: inherit; padding: 9px 12px;
+    }
+    .setup-button:hover { border-color: var(--blue); }
+    .logout-button { border-color: rgba(240,82,82,.55); color: #ff9d9d; }
+    .cards { display: grid; grid-template-columns: repeat(6, minmax(135px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .card {
+      padding: 14px 15px; border: 1px solid var(--line); border-top: 3px solid var(--blue);
+      border-radius: 7px; background: linear-gradient(155deg, var(--panel-2), var(--panel));
+    }
+    .card.good { border-top-color: var(--green); }
+    .card.purple { border-top-color: var(--purple); }
+    .card.bad { border-top-color: var(--red); }
+    .card .label { color: var(--muted); font-size: 12px; }
+    .card .value { margin-top: 5px; font-size: 25px; font-weight: 700; }
+    .map-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(270px, 1fr); gap: 12px; margin-bottom: 18px; }
+    .panel, .table-panel {
+      overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    }
+    .panel-title, .table-title {
+      display: flex; justify-content: space-between; align-items: center; min-height: 46px;
+      padding: 12px 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.015);
+    }
+    .map-controls { display: flex; align-items: center; gap: 14px; }
+    #infrastructureFilter, #mapView, #continentView { height: 32px; padding: 5px 9px; }
+    .legend { display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 11px; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+    .legend-dot.alert { background: var(--red); }
+    .map-wrap {
+      position: relative; min-height: 525px; overflow: hidden;
+      background: radial-gradient(circle at 48% 48%, #142938, #09141d 68%);
+    }
+    .world-map { display: block; width: 100%; height: 525px; }
+    .graticule { fill: none; stroke: rgba(146,164,177,.08); stroke-width: 1; }
+    .land { fill: #1a3443; stroke: #315265; stroke-width: 1.3; }
+    .detailed-land { fill: #1a3443; stroke: #416579; stroke-width: var(--land-stroke, 1.15px); stroke-linejoin: round; }
+    .island { fill: #1a3443; stroke: #416579; stroke-width: var(--island-stroke, .9px); }
+    .map-boundary { fill: none; stroke: rgba(146,164,177,.24); stroke-width: var(--boundary-stroke, .65px); stroke-dasharray: 2 2; }
+    .geo-label { fill: rgba(184,200,211,.52); font-size: var(--geo-label-size, 9px); font-weight: 600; letter-spacing: .5px; text-anchor: middle; pointer-events: none; }
+    .marker { cursor: pointer; outline: none; }
+    .marker .pulse { fill: rgba(70,164,232,.2); stroke: var(--blue); stroke-width: 2; }
+    .marker.alert .pulse { fill: rgba(240,82,82,.22); stroke: var(--red); }
+    .marker.active .pulse { stroke: var(--cyan); stroke-width: 4; }
+    .marker-count { fill: var(--text); font-size: 12px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+    .marker-label { fill: #c8d7e1; font-size: 12px; font-weight: 600; text-anchor: middle; pointer-events: none; }
+    .country-list { max-height: 525px; overflow: auto; }
+    .country-button {
+      display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) repeat(4, auto);
+      gap: 12px; align-items: center; padding: 13px 14px; border: 0; border-bottom: 1px solid rgba(41,58,71,.62);
+      border-radius: 0; text-align: left; background: transparent;
+    }
+    .country-button.active { background: rgba(70,164,232,.1); }
+    .country-name { overflow: hidden; text-overflow: ellipsis; font-weight: 650; }
+    .country-stat { min-width: 30px; color: var(--muted); text-align: right; font-size: 12px; }
+    .country-stat.alert { color: var(--red); font-weight: 700; }
+    .table-wrap { max-height: 500px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 11px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(41,58,71,.62); }
+    th { position: sticky; top: 0; z-index: 1; background: #16242f; color: #b8c8d3; font-weight: 600; }
+    th[aria-sort] { padding: 0; }
+    .sort-button {
+      display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 11px; border: 0; border-radius: 0; background: transparent;
+      color: inherit; font-size: 12px; font-weight: 600; text-align: left;
+    }
+    .sort-button:hover, .sort-button:focus-visible { color: var(--text); background: rgba(70,164,232,.09); outline: none; }
+    .sort-indicator { width: 10px; color: var(--blue); text-align: center; }
+    tbody tr:hover { background: rgba(70,164,232,.055); }
+    .badge { display: inline-block; min-width: 30px; padding: 3px 8px; border-radius: 999px; text-align: center; font-weight: 650; background: rgba(146,164,177,.13); color: var(--muted); }
+    .badge.good { background: rgba(49,196,141,.14); color: var(--green); }
+    .badge.alert { background: rgba(240,82,82,.14); color: var(--red); }
+    .loading {
+      display: flex; align-items: center; gap: 11px; margin-bottom: 16px; padding: 12px 14px;
+      border: 1px solid var(--blue); border-radius: 6px; color: #b9dcf6;
+      background: rgba(70,164,232,.09);
+    }
+    .spinner {
+      width: 16px; height: 16px; flex: 0 0 auto; border: 2px solid rgba(70,164,232,.28);
+      border-top-color: var(--blue); border-radius: 50%; animation: spin .9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--red); border-radius: 6px; color: #ffb7b7; background: rgba(240,82,82,.1); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- Shared navigation and lifecycle controls for the geographic view. -->
+    <header>
+      <div>
+        <h1>Arc Global View</h1>
+        <div class="subtitle" id="account">Loading global Arc estate...</div>
+        <div class="meta" id="updated"></div>
+        <nav class="tabs">
+          <a href="/global.html" class="active">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="header-actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout">Logout</button>
+      </div>
+    </header>
+
+    <div id="error" class="error hidden"></div>
+    <div id="loading" class="loading hidden" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span><span id="loadingMessage"></span>
+    </div>
+
+    <!-- Global totals combine the scoped Arc server and Arc-enabled Kubernetes inventories. -->
+    <div class="cards">
+      <div class="card"><div class="label">Countries represented</div><div class="value" id="countryTotal">-</div></div>
+      <div class="card"><div class="label">Managed infrastructure</div><div class="value" id="nodeTotal">-</div></div>
+      <div class="card good"><div class="label">Physical hosts</div><div class="value" id="hostTotal">-</div></div>
+      <div class="card purple"><div class="label">Virtual machines</div><div class="value" id="vmTotal">-</div></div>
+      <div class="card"><div class="label">Kubernetes clusters</div><div class="value" id="clusterTotal">-</div></div>
+      <div class="card bad"><div class="label">Active alerts (last hour)</div><div class="value" id="alertTotal">-</div></div>
+    </div>
+
+    <!-- The map is embedded SVG to keep the portable dashboard independent of external map services. -->
+    <div class="map-layout">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Worldwide Arc footprint</h2>
+          <div class="map-controls">
+            <select id="infrastructureFilter" aria-label="Infrastructure type">
+              <option value="all">All infrastructure</option>
+              <option value="servers">Servers</option>
+              <option value="kubernetes">Kubernetes clusters</option>
+            </select>
+            <select id="mapView" aria-label="World map style">
+              <option value="simple">Simple map</option>
+              <option value="detailed">Detailed map</option>
+              <option value="continent">Continent map</option>
+            </select>
+            <select id="continentView" class="hidden" aria-label="Continent">
+              <option value="north-america">North America</option>
+              <option value="south-america">South America</option>
+              <option value="europe">Europe</option>
+              <option value="africa">Africa</option>
+              <option value="asia">Asia</option>
+              <option value="oceania">Oceania</option>
+            </select>
+            <div class="legend"><span><i class="legend-dot"></i>Managed location</span><span><i class="legend-dot alert"></i>Active alerts</span><span>Marker size = infrastructure</span></div>
+          </div>
+        </div>
+        <div class="map-wrap">
+          <svg class="world-map" id="worldMap" viewBox="0 0 1000 500" role="img" aria-label="World map showing Arc-managed nodes by country">
+            <g class="graticule">
+              <path d="M0 125H1000M0 250H1000M0 375H1000M250 0V500M500 0V500M750 0V500"/>
+            </g>
+            <g id="simpleMap">
+              <path class="land" d="M65 105 L135 55 225 50 285 90 270 135 225 150 205 205 165 225 125 190 85 175 48 135Z"/>
+              <path class="land" d="M225 220 L270 238 300 290 288 345 260 420 226 390 210 315 188 265Z"/>
+              <path class="land" d="M420 82 L465 58 520 72 545 110 520 138 480 132 448 112Z"/>
+              <path class="land" d="M455 145 L515 130 565 155 585 225 548 315 505 365 468 315 440 235Z"/>
+              <path class="land" d="M530 83 L620 55 735 68 842 115 885 170 835 208 770 195 724 230 650 204 605 166 550 145Z"/>
+              <path class="land" d="M785 330 L850 305 915 330 930 382 885 420 810 405 770 365Z"/>
+              <path class="land" d="M910 250 L934 243 944 270 928 286 912 273Z"/>
+            </g>
+            <g id="detailedMap" class="hidden">
+              <!-- Refined, locally embedded geography keeps the portable view independent of map services. -->
+              <g>
+                <path class="detailed-land" d="M45 112 L62 88 92 82 105 62 137 48 170 51 190 43 225 52 253 69 278 92 274 112 259 121 250 139 226 145 213 162 208 187 192 205 174 215 157 207 145 190 122 188 112 173 90 169 76 151 55 145 42 128Z"/>
+                <path class="detailed-land" d="M176 211 L199 214 218 226 238 230 258 244 275 265 286 291 287 319 276 343 270 372 257 405 240 425 225 405 218 380 207 355 205 325 195 301 188 274 174 248Z"/>
+                <path class="detailed-land" d="M310 36 L342 22 371 33 382 57 365 79 334 76 313 60Z"/>
+                <path class="detailed-land" d="M421 105 L431 84 449 78 457 59 470 48 481 65 480 88 491 102 510 101 528 114 520 132 501 138 482 132 465 139 448 130 429 126Z"/>
+                <path class="detailed-land" d="M446 143 L469 133 497 136 521 149 544 176 559 210 555 246 540 276 527 310 505 342 486 329 473 303 460 276 453 247 438 220 441 185Z"/>
+                <path class="detailed-land" d="M518 103 L546 82 584 74 622 61 670 61 714 72 752 79 790 96 827 112 861 135 884 160 878 181 855 191 834 211 806 207 783 193 757 197 738 218 712 222 688 207 665 211 641 194 621 175 598 169 576 151 551 143 528 129Z"/>
+                <path class="detailed-land" d="M646 190 L663 184 679 201 688 222 675 247 659 264 646 243 638 217Z"/>
+                <path class="detailed-land" d="M744 224 L762 220 776 236 790 239 801 254 785 267 766 260 753 247Z"/>
+                <path class="detailed-land" d="M780 329 L806 314 837 310 863 302 896 316 919 338 931 365 920 391 897 408 866 417 836 410 812 399 786 380 769 353Z"/>
+                <path class="island" d="M410 104 L417 88 426 93 424 111Z"/>
+                <path class="island" d="M563 302 L570 284 579 300 575 329 566 339Z"/>
+                <path class="island" d="M852 210 L858 193 865 205 861 225Z"/>
+                <path class="island" d="M879 224 L885 214 890 230 884 244Z"/>
+                <path class="island" d="M916 427 L927 417 933 433 924 447Z"/>
+                <path class="island" d="M930 397 L938 391 942 407 935 417Z"/>
+              </g>
+              <g class="map-boundary">
+                <path d="M76 151 L110 134 145 136 176 125 208 132 250 139"/>
+                <path d="M112 173 L144 160 176 166 208 187"/>
+                <path d="M195 246 L229 254 258 244 M205 302 L244 295 286 291 M218 356 L270 372"/>
+                <path d="M448 130 L459 112 480 108 501 116 520 132 M465 139 L472 168 496 176 521 149"/>
+                <path d="M441 185 L480 186 516 175 544 176 M453 247 L493 239 555 246 M473 303 L527 310"/>
+                <path d="M551 143 L585 119 621 118 659 101 714 104 752 79"/>
+                <path d="M598 169 L633 153 670 157 712 143 757 157 827 112"/>
+                <path d="M641 194 L688 183 738 182 783 193 M712 222 L744 224"/>
+                <path d="M806 314 L823 348 812 399 M863 302 L866 350 897 408"/>
+              </g>
+              <g>
+                <text class="geo-label" x="158" y="118">NORTH AMERICA</text>
+                <text class="geo-label" x="239" y="316">SOUTH AMERICA</text>
+                <text class="geo-label" x="480" y="119">EUROPE</text>
+                <text class="geo-label" x="498" y="229">AFRICA</text>
+                <text class="geo-label" x="699" y="139">ASIA</text>
+                <text class="geo-label" x="856" y="365">AUSTRALIA</text>
+                <text class="geo-label" x="346" y="53">GREENLAND</text>
+              </g>
+            </g>
+            <g id="markers"></g>
+          </svg>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="panel-title"><h2>Country summary</h2><span class="meta">Hosts · VMs · Clusters · Alerts</span></div>
+        <div class="country-list" id="countryList"></div>
+      </aside>
+    </div>
+
+    <!-- Country selection filters this sortable resource-group/site rollup. -->
+    <section class="table-panel">
+      <div class="table-title"><h2 id="siteTitle">All managed locations</h2><span class="meta" id="shown"></span></div>
+      <div class="table-wrap">
+        <table>
+          <thead id="siteHeaders"><tr>
+            <th aria-sort="ascending"><button class="sort-button" data-sort-key="country">Country<span class="sort-indicator">▲</span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="site">Site / resource group<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="region">Azure region<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="nodes">Managed nodes<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="hosts">Physical hosts<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="vms">Virtual machines<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="clusters">Kubernetes clusters<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="connected">Connected<span class="sort-indicator"></span></button></th>
+            <th aria-sort="none"><button class="sort-button" data-sort-key="alerts">Active alerts<span class="sort-indicator"></span></button></th>
+          </tr></thead>
+          <tbody id="siteRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Azure location metadata and continent classification are resolved server-side once per
+    // refresh across the whole fleet; the browser receives only the aggregated country/site
+    // rollup (never the full 50,000-server inventory) and performs just the map geometry
+    // (coordinate projection, continent-view filtering) for that much smaller aggregated set.
+    const state = { countries: [], selectedCountry: '', infrastructure: 'all', mapView: 'simple', continent: 'north-america', markerScale: 1, sortKey: 'country', sortDirection: 'ascending' };
+    let refreshTimer = null;
+    let loadingTimer = null;
+    let loadingStartedAt = null;
+    let retryTimer = null;
+    let refreshInProgress = false;
+    let refreshPending = false;
+    let hasLoaded = false;
+    const byId = id => document.getElementById(id);
+    const text = (id, value) => { byId(id).textContent = value; };
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+
+    const continentViews = {
+      'north-america': { viewBox: '25 25 330 200', width: 330, height: 200 },
+      'south-america': { viewBox: '155 195 155 250', width: 155, height: 250 },
+      europe: { viewBox: '395 45 165 115', width: 165, height: 115 },
+      africa: { viewBox: '420 125 165 235', width: 165, height: 235 },
+      asia: { viewBox: '510 45 395 230', width: 395, height: 230 },
+      oceania: { viewBox: '750 285 205 175', width: 205, height: 175 }
+    };
+
+    function setMapView(view) {
+      const selected = ['simple', 'detailed', 'continent'].includes(view) ? view : 'simple';
+      state.mapView = selected;
+      byId('simpleMap').classList.toggle('hidden', selected !== 'simple');
+      byId('detailedMap').classList.toggle('hidden', selected === 'simple');
+      byId('continentView').classList.toggle('hidden', selected !== 'continent');
+      byId('mapView').value = selected;
+      localStorage.setItem('arcDashboardMapView', selected);
+      if (selected === 'continent' && state.selectedCountry && !visibleCountries().some(country => country.name === state.selectedCountry)) {
+        state.selectedCountry = '';
+      }
+      applyMapViewport();
+      renderMap();
+      renderCountryList();
+      renderTable();
+    }
+
+    function setContinent(continent) {
+      state.continent = continentViews[continent] ? continent : 'north-america';
+      byId('continentView').value = state.continent;
+      localStorage.setItem('arcDashboardContinent', state.continent);
+      if (state.selectedCountry && !visibleCountries().some(country => country.name === state.selectedCountry)) {
+        state.selectedCountry = '';
+      }
+      applyMapViewport();
+      renderMap();
+      renderCountryList();
+      renderTable();
+    }
+
+    function applyMapViewport() {
+      const map = byId('worldMap');
+      const continent = state.mapView === 'continent' ? continentViews[state.continent] : null;
+      const scale = continent ? Math.max(continent.width / 1000, continent.height / 500) : 1;
+      state.markerScale = scale;
+      map.setAttribute('viewBox', continent ? continent.viewBox : '0 0 1000 500');
+      map.style.setProperty('--land-stroke', `${1.15 * scale}px`);
+      map.style.setProperty('--island-stroke', `${.9 * scale}px`);
+      map.style.setProperty('--boundary-stroke', `${.65 * scale}px`);
+      map.style.setProperty('--geo-label-size', `${9 * scale}px`);
+    }
+
+    function configureMapView() {
+      state.continent = continentViews[localStorage.getItem('arcDashboardContinent')]
+        ? localStorage.getItem('arcDashboardContinent')
+        : 'north-america';
+      byId('continentView').value = state.continent;
+      setMapView(localStorage.getItem('arcDashboardMapView') || 'simple');
+    }
+
+    function visibleCountries() {
+      return state.mapView === 'continent'
+        ? state.countries.filter(country => country.continent === state.continent)
+        : state.countries;
+    }
+
+    function projectCoordinates(latitude, longitude) {
+      const x = longitude < -30
+        ? 45 + ((longitude + 180) / 150) * 275
+        : 410 + ((longitude + 30) / 210) * 540;
+      return { x: Math.max(20, Math.min(980, x)), y: Math.max(20, Math.min(480, ((90 - latitude) / 180) * 500)) };
+    }
+
+    function renderSummary(totals) {
+      const count = value => Number(value ?? 0).toLocaleString();
+      text('countryTotal', count(totals.countries));
+      text('nodeTotal', count(totals.nodes));
+      text('hostTotal', count(totals.hosts));
+      text('vmTotal', count(totals.vms));
+      text('clusterTotal', count(totals.clusters));
+      text('alertTotal', count(totals.alerts));
+    }
+
+    function selectCountry(name) {
+      state.selectedCountry = state.selectedCountry === name ? '' : name;
+      renderMap();
+      renderCountryList();
+      renderTable();
+    }
+
+    function renderMap() {
+      // SVG elements require the SVG namespace; marker area scales with node count and alerts change color.
+      const markers = byId('markers');
+      markers.replaceChildren();
+      for (const country of visibleCountries()) {
+        if (country.latitude === null || country.longitude === null || country.latitude === undefined || country.longitude === undefined) continue;
+        const { x, y } = projectCoordinates(country.latitude, country.longitude);
+        const group = document.createElementNS(svgNamespace, 'g');
+        group.setAttribute('class', `marker${country.alerts ? ' alert' : ''}${state.selectedCountry === country.name ? ' active' : ''}`);
+        group.setAttribute('tabindex', '0');
+        group.setAttribute('role', 'button');
+        group.setAttribute('aria-label', `${country.name}: ${country.nodes} managed resources, ${country.hosts} hosts, ${country.vms} virtual machines, ${country.clusters} Kubernetes clusters, ${country.alerts} alerts`);
+        const title = document.createElementNS(svgNamespace, 'title');
+        title.textContent = `${country.name}\n${country.nodes} resources | ${country.hosts} hosts | ${country.vms} VMs | ${country.clusters} clusters | ${country.alerts} alerts`;
+        const radius = Math.min(31, 13 + Math.sqrt(country.nodes) * 2.1) * state.markerScale;
+        const circle = document.createElementNS(svgNamespace, 'circle');
+        circle.setAttribute('class', 'pulse');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', radius);
+        circle.style.strokeWidth = `${(state.selectedCountry === country.name ? 4 : 2) * state.markerScale}px`;
+        const count = document.createElementNS(svgNamespace, 'text');
+        count.setAttribute('class', 'marker-count');
+        count.setAttribute('x', x);
+        count.setAttribute('y', y + 4 * state.markerScale);
+        count.style.fontSize = `${12 * state.markerScale}px`;
+        count.textContent = country.nodes;
+        const label = document.createElementNS(svgNamespace, 'text');
+        label.setAttribute('class', 'marker-label');
+        label.setAttribute('x', x);
+        label.setAttribute('y', y + radius + 17 * state.markerScale);
+        label.style.fontSize = `${12 * state.markerScale}px`;
+        label.textContent = country.name;
+        group.append(title, circle, count, label);
+        group.addEventListener('click', () => selectCountry(country.name));
+        group.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectCountry(country.name);
+          }
+        });
+        markers.appendChild(group);
+      }
+    }
+
+    function renderCountryList() {
+      const list = byId('countryList');
+      list.replaceChildren();
+      const countries = visibleCountries();
+      if (!countries.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.style.padding = '16px 14px';
+        empty.textContent = 'No managed locations are mapped to this continent.';
+        list.appendChild(empty);
+      }
+      for (const country of countries) {
+        const button = document.createElement('button');
+        button.className = `country-button${state.selectedCountry === country.name ? ' active' : ''}`;
+        const name = document.createElement('span');
+        name.className = 'country-name';
+        name.textContent = country.name;
+        const hosts = document.createElement('span');
+        hosts.className = 'country-stat';
+        hosts.textContent = `${country.hosts} H`;
+        const vms = document.createElement('span');
+        vms.className = 'country-stat';
+        vms.textContent = `${country.vms} V`;
+        const clusters = document.createElement('span');
+        clusters.className = 'country-stat';
+        clusters.textContent = `${country.clusters} K`;
+        const alerts = document.createElement('span');
+        alerts.className = `country-stat${country.alerts ? ' alert' : ''}`;
+        alerts.textContent = `${country.alerts} A`;
+        button.append(name, hosts, vms, clusters, alerts);
+        button.addEventListener('click', () => selectCountry(country.name));
+        list.appendChild(button);
+      }
+    }
+
+    function addCell(row, content) {
+      const cell = document.createElement('td');
+      cell.textContent = content ?? '-';
+      row.appendChild(cell);
+      return cell;
+    }
+
+    function addBadgeCell(row, content, className = '') {
+      const cell = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = `badge ${className}`;
+      badge.textContent = content;
+      cell.appendChild(badge);
+      row.appendChild(cell);
+    }
+
+    function compareSites(left, right) {
+      // Numeric operational totals and human-readable location fields share one sortable table.
+      const leftValue = left[state.sortKey];
+      const rightValue = right[state.sortKey];
+      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : String(leftValue || '').localeCompare(String(rightValue || ''), undefined, { numeric: true, sensitivity: 'base' });
+      return state.sortDirection === 'ascending' ? comparison : -comparison;
+    }
+
+    function setSort(key) {
+      if (state.sortKey === key) {
+        state.sortDirection = state.sortDirection === 'ascending' ? 'descending' : 'ascending';
+      } else {
+        state.sortKey = key;
+        state.sortDirection = ['nodes', 'hosts', 'vms', 'clusters', 'connected', 'alerts'].includes(key) ? 'descending' : 'ascending';
+      }
+      document.querySelectorAll('#siteHeaders th').forEach(header => {
+        const button = header.querySelector('.sort-button');
+        const active = button.dataset.sortKey === state.sortKey;
+        header.setAttribute('aria-sort', active ? state.sortDirection : 'none');
+        button.querySelector('.sort-indicator').textContent = active ? (state.sortDirection === 'ascending' ? '▲' : '▼') : '';
+      });
+      renderTable();
+    }
+
+    function renderTable() {
+      const visible = visibleCountries();
+      const countries = state.selectedCountry ? visible.filter(country => country.name === state.selectedCountry) : visible;
+      const sites = countries.flatMap(country => country.sites || []).sort(compareSites);
+      const continentName = byId('continentView').selectedOptions[0]?.textContent || 'Selected continent';
+      text('siteTitle', state.selectedCountry
+        ? `${state.selectedCountry} managed locations`
+        : state.mapView === 'continent' ? `${continentName} managed locations` : 'All managed locations');
+      text('shown', `${sites.length} locations | Click the selected country again to clear`);
+      const rows = byId('siteRows');
+      rows.replaceChildren();
+      for (const site of sites) {
+        const row = document.createElement('tr');
+        addCell(row, site.country);
+        addCell(row, site.site);
+        addCell(row, site.region);
+        addCell(row, site.nodes);
+        addCell(row, site.hosts);
+        addCell(row, site.vms);
+        addCell(row, site.clusters);
+        addBadgeCell(row, site.connected, site.connected === site.nodes ? 'good' : '');
+        addBadgeCell(row, site.alerts, site.alerts ? 'alert' : '');
+        rows.appendChild(row);
+      }
+    }
+
+    function render() {
+      renderMap();
+      renderCountryList();
+      renderTable();
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(refresh, interval);
+    }
+
+    function updateLoadingMessage() {
+      const infrastructureLabel = {
+        all: 'server and Kubernetes geography',
+        servers: 'server geography',
+        kubernetes: 'Kubernetes cluster geography'
+      }[state.infrastructure] || 'global geography';
+      const elapsed = Math.floor((Date.now() - loadingStartedAt) / 1000);
+      text('loadingMessage', !hasLoaded
+        ? `Loading ${infrastructureLabel} across the selected resource groups. The first load can take a minute or more. Keep this page open. (${elapsed}s)`
+        : `Refreshing ${infrastructureLabel}... (${elapsed}s)`);
+    }
+
+    function showLoading() {
+      if (loadingStartedAt === null) loadingStartedAt = Date.now();
+      updateLoadingMessage();
+      byId('loading').classList.remove('hidden');
+      if (!loadingTimer) loadingTimer = setInterval(updateLoadingMessage, 1000);
+    }
+
+    function hideLoading() {
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = null;
+      loadingStartedAt = null;
+      byId('loading').classList.add('hidden');
+    }
+
+    async function refresh() {
+      // A single aggregated API supplies the entire country/site rollup -- geography and
+      // continent classification are already resolved server-side from Azure region metadata.
+      if (refreshInProgress) {
+        refreshPending = true;
+        return;
+      }
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      refreshInProgress = true;
+      let retryScheduled = false;
+      const requestedInfrastructure = state.infrastructure;
+      const button = byId('refresh');
+      const error = byId('error');
+      button.disabled = true;
+      button.textContent = hasLoaded ? 'Refreshing...' : 'Loading...';
+      error.classList.add('hidden');
+      showLoading();
+      try {
+        const params = new URLSearchParams({ infrastructure: requestedInfrastructure });
+        const response = await fetch(`/api/global/summary?${params}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) {
+          if (response.status === 503) {
+            retryScheduled = true;
+            retryTimer = setTimeout(() => {
+              retryTimer = null;
+              refresh();
+            }, 2000);
+            return;
+          }
+          throw new Error(data.error || `Request failed (${response.status})`);
+        }
+        if (requestedInfrastructure !== state.infrastructure) {
+          refreshPending = true;
+          return;
+        }
+        state.countries = data.geography.countries || [];
+        hasLoaded = true;
+        text('account', `${data.account.subscription} | ${data.account.user}`);
+        text('updated', `Updated ${new Date(data.generatedAt).toLocaleString()} | Azure Resource Graph inventory`);
+        renderSummary(data.geography.totals);
+        render();
+      } catch (exception) {
+        error.textContent = exception.message;
+        error.classList.remove('hidden');
+      } finally {
+        refreshInProgress = false;
+        if (refreshPending) {
+          refreshPending = false;
+          if (retryTimer) clearTimeout(retryTimer);
+          retryScheduled = true;
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            refresh();
+          }, 0);
+        }
+        if (!retryScheduled) {
+          hideLoading();
+          button.disabled = false;
+          button.textContent = 'Refresh Now';
+        }
+      }
+    }
+
+    async function logout() {
+      // The static confirmation remains visible after the local HTTP listener shuts down.
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Logout failed (${response.status})`);
+        clearInterval(refreshTimer);
+        if (retryTimer) clearTimeout(retryTimer);
+        if (loadingTimer) clearInterval(loadingTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#92a4b1">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (exception) {
+        byId('error').textContent = exception.message;
+        byId('error').classList.remove('hidden');
+        button.disabled = false;
+      }
+    }
+
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    byId('mapView').addEventListener('change', event => setMapView(event.target.value));
+    byId('continentView').addEventListener('change', event => setContinent(event.target.value));
+    byId('infrastructureFilter').addEventListener('change', event => {
+      state.infrastructure = event.target.value;
+      state.selectedCountry = '';
+      localStorage.setItem('arcDashboardGlobalInfrastructure', state.infrastructure);
+      refresh();
+    });
+    document.querySelectorAll('#siteHeaders .sort-button').forEach(button => {
+      button.addEventListener('click', () => setSort(button.dataset.sortKey));
+    });
+    const savedInfrastructure = localStorage.getItem('arcDashboardGlobalInfrastructure');
+    state.infrastructure = ['all', 'servers', 'kubernetes'].includes(savedInfrastructure) ? savedInfrastructure : 'all';
+    byId('infrastructureFilter').value = state.infrastructure;
+    configureMapView();
+    configureRefreshInterval();
+    refresh();
+  </script>
+</body>
+</html>

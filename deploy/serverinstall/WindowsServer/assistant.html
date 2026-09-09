@@ -1,0 +1,2146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc AI Assistant</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#09131c; --panel:#101d27; --panel-2:#142530; --line:#29414f; --text:#e8f0f5;
+      --muted:#96aab7; --blue:#46a4e8; --cyan:#41c7d9; --green:#31c48d; --yellow:#f6c344;
+      --red:#f05252;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; min-width:900px; color:var(--text);
+      background:radial-gradient(circle at 80% 0, rgba(70,164,232,.12), transparent 34%), var(--bg);
+      font:14px/1.45 "Segoe UI", Arial, sans-serif;
+    }
+    main { width:min(1740px, calc(100% - 40px)); margin:auto; padding:24px 0 48px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:20px; }
+    h1,h2,p { margin-top:0; }
+    h1 { margin-bottom:5px; font-size:28px; font-weight:650; }
+    h2 { margin-bottom:5px; font-size:18px; }
+    .subtitle,.meta,.hint { color:var(--muted); }
+    .meta,.hint { font-size:12px; }
+    nav.tabs { display:flex; width:min(1296px, calc(100vw - 40px)); gap:6px; margin-top:12px; flex-wrap:wrap; }
+    nav.tabs a {
+      display:inline-flex; width:156px; min-height:36px; align-items:center; justify-content:center;
+      padding:7px 8px; border:1px solid var(--line); border-radius:6px; color:var(--muted);
+      text-decoration:none; text-align:center; font-size:13px; font-weight:600;
+    }
+    nav.tabs a:hover { border-color:var(--blue); color:var(--text); }
+    nav.tabs a.active { border-color:var(--blue); color:#071019; background:var(--blue); }
+    .header-actions { display:flex; gap:10px; }
+    .header-actions > select,.header-actions > button { width:170px; height:40px; }
+    #refreshInterval { width:230px; min-width:230px; }
+    .setup-button {
+      display:inline-flex; width:140px; height:40px; align-items:center; justify-content:center; padding:8px 14px;
+      border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--panel);
+      text-decoration:none; font-weight:600;
+    }
+    .setup-button:hover { border-color:var(--blue); }
+    .logout-button { border-color:rgba(240,82,82,.55); color:#ff9d9d; }
+    .layout {
+      display:grid; grid-template-columns:390px minmax(0,1fr);
+      grid-template-areas:"connection chat" "monitor-config monitor-dashboard" "workload workload";
+      gap:16px; align-items:stretch;
+    }
+    .sidebar,.content-column { display:contents; }
+    .connection-panel { grid-area:connection; }
+    .monitoring-config-panel { grid-area:monitor-config; align-self:start; }
+    .monitoring-config-panel.panel-collapsed > .panel-header,.monitor-dashboard.panel-collapsed > .panel-header { height:136px; }
+    .workload-panel { grid-area:workload; min-width:0; }
+    .panel { border:1px solid var(--line); border-radius:8px; background:linear-gradient(145deg,var(--panel-2),var(--panel)); overflow:hidden; }
+    .panel-header { padding:15px 17px; border-bottom:1px solid var(--line); }
+    .collapsible-panel-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .panel-body { padding:17px; }
+    .status {
+      display:inline-flex; margin-top:8px; padding:4px 9px; border-radius:999px;
+      color:var(--yellow); background:rgba(246,195,68,.13); font-size:11px; font-weight:700;
+    }
+    .status.good { color:var(--green); background:rgba(49,196,141,.13); }
+    .status.bad { color:var(--red); background:rgba(240,82,82,.13); }
+    label { display:block; margin:13px 0 5px; color:#c6d6df; font-size:12px; font-weight:650; }
+    input,textarea,select,button {
+      border:1px solid var(--line); border-radius:6px; color:var(--text); background:#0b1720; font:inherit;
+    }
+    input { width:100%; min-height:40px; padding:9px 11px; }
+    select { min-height:40px; padding:8px 10px; }
+    button { min-height:40px; padding:8px 13px; cursor:pointer; font-weight:650; }
+    button:hover { border-color:var(--cyan); }
+    button.primary { border-color:var(--blue); color:#071019; background:var(--blue); }
+    button:disabled { opacity:.55; cursor:wait; }
+    .configure-actions { display:flex; gap:9px; margin-top:15px; }
+    .login-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
+    .masked-input { position:relative; min-width:0; }
+    .masked-input input { padding-right:45px; }
+    .visibility-toggle {
+      position:absolute; top:50%; right:5px; width:34px; min-height:32px; padding:5px;
+      border:0; color:var(--muted); background:transparent; transform:translateY(-50%);
+    }
+    .visibility-toggle:hover { color:var(--text); }
+    .visibility-toggle svg { display:block; width:20px; height:20px; margin:auto; fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.8; }
+    .visibility-toggle.revealed .eye-slash { display:none; }
+    .monitor-search { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+    .monitor-select { width:100%; margin-top:8px; }
+    .monitor-options { display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:10px; }
+    .monitor-options select { width:100%; }
+    .monitor-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+    .workload-builder { display:grid; grid-template-columns:minmax(280px,.75fr) minmax(0,1.25fr); gap:16px; align-items:start; }
+    .workload-results { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-top:8px; align-items:start; }
+    .workload-picker { position:relative; min-width:0; }
+    .workload-picker summary {
+      min-height:40px; padding:9px 11px; border:1px solid var(--line); border-radius:6px;
+      color:var(--text); background:#0b1720; cursor:pointer; list-style:none;
+    }
+    .workload-picker summary::-webkit-details-marker { display:none; }
+    .workload-picker summary::after { float:right; color:var(--muted); content:"▾"; }
+    .workload-picker[open] summary::after { content:"▴"; }
+    .workload-picker-options {
+      position:absolute; z-index:5; display:grid; width:100%; max-height:260px; overflow:auto;
+      margin-top:4px; padding:6px; border:1px solid var(--line); border-radius:6px; background:#0b1720;
+      box-shadow:0 10px 24px rgba(0,0,0,.35);
+    }
+    .workload-picker-option { display:flex; gap:9px; align-items:flex-start; margin:0; padding:8px; border-radius:4px; cursor:pointer; }
+    .workload-picker-option:hover { background:rgba(70,164,232,.09); }
+    .workload-picker-option input { width:16px; min-height:16px; margin:2px 0 0; flex:0 0 auto; }
+    .workload-picker-option span { min-width:0; overflow-wrap:anywhere; }
+    .workload-picker-empty { padding:8px; color:var(--muted); font-size:12px; }
+    .selected-servers { display:grid; gap:7px; min-height:94px; padding:10px; border:1px solid var(--line); border-radius:6px; background:#0b1720; }
+    .selected-server { display:flex; min-width:0; align-items:center; justify-content:space-between; gap:10px; padding:7px 9px; border:1px solid rgba(41,65,79,.7); border-radius:5px; }
+    .selected-server span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .selected-server button { min-height:28px; padding:3px 8px; color:#ffb7b7; font-size:10px; }
+    .server-detail-action { min-height:28px; padding:3px 8px; border:0; color:var(--cyan); background:transparent; text-align:left; }
+    .server-detail-action:hover { color:var(--text); }
+    .workload-server-facts { display:grid; grid-template-columns:repeat(4,minmax(160px,1fr)); gap:9px; margin-top:10px; }
+    .workload-server-fact { padding:9px 10px; border:1px solid var(--line); border-radius:6px; background:#0b1720; }
+    .workload-server-fact span { display:block; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+    .workload-server-fact strong { display:block; margin-top:3px; overflow-wrap:anywhere; font-size:12px; }
+    .workload-status-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+    .workload-status-actions { display:flex; align-items:center; gap:8px; }
+    .workload-kpis { display:grid; grid-template-columns:repeat(9,minmax(100px,1fr)); gap:9px; }
+    .monitor-summary { margin-top:12px; padding:11px; border:1px solid var(--line); border-radius:6px; background:#0b1720; }
+    .monitor-summary strong { display:block; margin-bottom:4px; color:var(--cyan); }
+    .monitor-counts { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:9px; text-align:center; }
+    .monitor-counts div { padding:7px 4px; border:1px solid var(--line); border-radius:5px; }
+    .monitor-counts span { display:block; color:var(--muted); font-size:10px; }
+    .device {
+      display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; margin-top:10px;
+      padding:11px; border:1px solid rgba(65,199,217,.4); border-radius:6px; background:rgba(65,199,217,.07);
+    }
+    .device-code { margin-top:4px; color:var(--cyan); font-size:20px; font-weight:750; letter-spacing:2px; }
+    .device a { color:var(--cyan); }
+    pre {
+      max-height:120px; overflow:auto; margin:10px 0 0; padding:9px; border:1px solid var(--line);
+      border-radius:6px; background:#081119; color:#bacbd6; white-space:pre-wrap; font:11px/1.4 Consolas, monospace;
+    }
+    .security-note { margin-top:14px; padding:11px; border-left:3px solid var(--cyan); background:rgba(65,199,217,.07); color:#c7d7df; font-size:12px; }
+    .chat-panel { grid-area:chat; min-width:0; min-height:650px; display:grid; grid-template-rows:auto 1fr auto; }
+    .messages { min-height:430px; max-height:610px; overflow:auto; padding:18px; }
+    .empty { display:grid; min-height:390px; place-items:center; color:var(--muted); text-align:center; }
+    .message { max-width:85%; margin-bottom:13px; padding:11px 13px; border:1px solid var(--line); border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .message.user { margin-left:auto; border-color:rgba(70,164,232,.55); background:rgba(70,164,232,.11); }
+    .message.assistant { background:#0b1720; }
+    .message .role { margin-bottom:5px; color:var(--cyan); font-size:10px; font-weight:750; letter-spacing:.07em; text-transform:uppercase; }
+    .message.user .role { color:#9ed3f7; }
+    .message-meta { margin-top:7px; color:var(--muted); font-size:10px; }
+    .composer { padding:15px; border-top:1px solid var(--line); }
+    textarea { width:100%; min-height:90px; max-height:220px; resize:vertical; padding:11px; }
+    .composer-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:9px; }
+    .suggestions { display:flex; gap:7px; flex-wrap:wrap; padding:0 18px 15px; }
+    .suggestions button { min-height:32px; padding:5px 9px; color:var(--muted); font-size:11px; }
+    .monitor-dashboard { grid-area:monitor-dashboard; min-width:0; align-self:start; }
+    .monitor-dashboard .panel-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+    .live-label { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:11px; white-space:nowrap; }
+    .live-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+    .live-dot.active { background:var(--green); box-shadow:0 0 0 4px rgba(49,196,141,.12); }
+    .monitor-visual-body { display:grid; gap:16px; }
+    .monitor-empty { min-height:180px; display:grid; place-items:center; color:var(--muted); text-align:center; }
+    .monitor-kpis { display:grid; grid-template-columns:repeat(8,minmax(110px,1fr)); gap:9px; }
+    .monitor-kpi { min-height:88px; padding:12px; border:1px solid var(--line); border-radius:7px; background:#0b1720; }
+    .monitor-kpi span { display:block; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+    .monitor-kpi strong { display:block; margin-top:7px; color:var(--cyan); font-size:19px; overflow-wrap:anywhere; }
+    .monitor-kpi strong.warning { color:var(--yellow); }
+    .monitor-kpi strong.critical { color:var(--red); }
+    .monitor-kpi small { display:block; margin-top:4px; color:var(--muted); font-size:10px; }
+    .monitor-kpi small .metric-delta { display:inline; margin-left:6px; text-transform:none; letter-spacing:normal; }
+    .chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .monitor-chart { padding:13px; border:1px solid var(--line); border-radius:7px; background:#0b1720; }
+    .chart-heading { display:flex; justify-content:space-between; gap:12px; margin-bottom:7px; }
+    .chart-heading strong { color:#cfe0e8; }
+    .chart-heading span { color:var(--muted); font-size:11px; }
+    .monitor-chart svg { display:block; width:100%; height:180px; overflow:visible; }
+    .chart-gridline { stroke:#223844; stroke-width:1; }
+    .chart-line { fill:none; stroke:var(--cyan); stroke-width:2.5; vector-effect:non-scaling-stroke; }
+    .chart-area { fill:rgba(65,199,217,.08); }
+    .chart-label { fill:var(--muted); font:10px "Segoe UI",Arial,sans-serif; }
+    .chart-empty { display:grid; height:180px; place-items:center; color:var(--muted); font-size:12px; }
+    .monitor-table-wrap { min-width:0; border:1px solid var(--line); border-radius:7px; background:#0b1720; overflow:hidden; }
+    .monitor-table-scroll { overflow:auto; }
+    .monitor-table-title { display:flex; min-height:48px; align-items:center; justify-content:space-between; gap:12px; padding:8px 13px; border-bottom:1px solid var(--line); color:#cfe0e8; font-weight:650; }
+    .table-action,.pagination button { min-height:30px; padding:4px 10px; color:var(--muted); font-size:11px; }
+    .monitor-table { width:100%; border-collapse:collapse; font-size:11px; }
+    .monitor-table th,.monitor-table td { padding:8px 10px; border-bottom:1px solid rgba(41,65,79,.65); text-align:left; vertical-align:top; }
+    .monitor-table th { position:sticky; top:0; color:var(--muted); background:#0f1d26; font-size:10px; text-transform:uppercase; }
+    .monitor-table tr:last-child td { border-bottom:0; }
+    .metric-with-delta { display:flex; align-items:center; gap:7px; white-space:nowrap; }
+    .metric-delta { font-size:10px; font-weight:700; }
+    .metric-delta.up,.heartbeat-good { color:var(--green); }
+    .metric-delta.down,.heartbeat-bad { color:var(--red); }
+    .metric-delta.same { color:var(--muted); }
+    .pagination { display:flex; min-height:45px; align-items:center; justify-content:flex-end; gap:9px; padding:7px 10px; border-top:1px solid var(--line); }
+    .pagination span { min-width:130px; color:var(--muted); text-align:center; font-size:11px; }
+    .severity-critical { color:#ff9d9d; }
+    .severity-warning { color:var(--yellow); }
+    @media (max-width:1400px) {
+      .monitor-kpis { grid-template-columns:repeat(4,1fr); }
+      .workload-kpis { grid-template-columns:repeat(5,1fr); }
+    }
+    .error { margin-top:12px; padding:10px 12px; border:1px solid var(--red); border-radius:6px; color:#ffb7b7; background:rgba(240,82,82,.1); }
+    .hidden { display:none !important; }
+    @media (max-width:1100px) {
+      .layout {
+        grid-template-columns:1fr;
+        grid-template-areas:"connection" "monitor-config" "chat" "monitor-dashboard" "workload";
+      }
+      .chart-grid,.workload-builder { grid-template-columns:1fr; }
+      .workload-server-facts { grid-template-columns:repeat(2,minmax(160px,1fr)); }
+      .workload-kpis { grid-template-columns:repeat(3,1fr); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Arc AI Assistant</h1>
+        <div class="subtitle">Read-only analysis of the current dashboard snapshots using Microsoft Foundry</div>
+        <nav class="tabs">
+          <a href="/global.html">Global view</a>
+          <a href="/server.html">Arc-enabled Servers</a>
+          <a href="/sql.html">Arc-enabled SQL</a>
+          <a href="/kubernetes.html">Arc-enabled Kubernetes</a>
+          <a href="/platforms.html">Clouds/Hypervisor</a>
+          <a href="/deployment.html">Agent Deployment Status</a>
+          <a href="/summary.html">Arc Summary</a>
+          <a href="/assistant.html" class="active">Arc AI Assistant</a>
+        </nav>
+      </div>
+      <div class="header-actions">
+        <a class="setup-button" href="/setup.html">&#9881; Setup</a>
+        <button id="refresh" type="button">Refresh Now</button>
+        <select id="refreshInterval" aria-label="Refresh Interval">
+          <option value="300000">Refresh Interval: 5 min</option>
+          <option value="600000">Refresh Interval: 10 min</option>
+          <option value="900000">Refresh Interval: 15 min</option>
+        </select>
+        <button class="logout-button" id="logout" type="button">Logout</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <div class="sidebar">
+        <section class="panel connection-panel">
+          <div class="panel-header">
+            <h2>Microsoft Foundry connection</h2>
+            <div class="meta">Uses an isolated Azure CLI profile so the Foundry tenant can differ from the Arc tenant.</div>
+            <span class="status" id="connectionStatus">Checking configuration</span>
+          </div>
+          <div class="panel-body">
+            <label for="foundryTenantId">Foundry tenant ID</label>
+            <div class="login-row">
+              <div class="masked-input">
+                <input id="foundryTenantId" type="password" autocomplete="off" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000">
+                <button class="visibility-toggle" id="toggleFoundryTenantVisibility" type="button" aria-label="Show Foundry tenant ID" title="Show Foundry tenant ID" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                    <circle cx="12" cy="12" r="2.5"></circle>
+                    <path class="eye-slash" d="M4 4l16 16"></path>
+                  </svg>
+                </button>
+              </div>
+              <button id="foundryLogin" type="button">Sign in to Foundry tenant</button>
+            </div>
+            <div class="hint">This can differ from the tenant containing the Arc subscription. Use the tenant that owns the Foundry resource.</div>
+            <span class="status" id="authenticationStatus">Foundry sign-in required</span>
+            <div class="device hidden" id="devicePrompt">
+              <div>Open <a id="deviceUrl" href="https://microsoft.com/devicelogin" target="_blank" rel="noopener">Microsoft device sign-in</a> and enter:<div class="device-code" id="deviceCode"></div></div>
+              <button id="copyDeviceCode" type="button">Copy code</button>
+            </div>
+            <pre class="hidden" id="loginOutput"></pre>
+
+            <label for="endpoint">Foundry resource endpoint</label>
+            <div class="masked-input">
+              <input id="endpoint" type="password" autocomplete="off" spellcheck="false" placeholder="https://your-resource.openai.azure.com">
+              <button class="visibility-toggle" id="toggleEndpointVisibility" type="button" aria-label="Show Foundry resource endpoint" title="Show Foundry resource endpoint" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                  <circle cx="12" cy="12" r="2.5"></circle>
+                  <path class="eye-slash" d="M4 4l16 16"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="hint">Azure OpenAI or Foundry Services resource URL. The server uses its `/openai/v1` API.</div>
+
+            <label for="model">Model deployment name</label>
+            <div class="masked-input">
+              <input id="model" type="password" autocomplete="off" spellcheck="false" placeholder="gpt-4.1-mini">
+              <button class="visibility-toggle" id="toggleModelVisibility" type="button" aria-label="Show model deployment name" title="Show model deployment name" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                  <circle cx="12" cy="12" r="2.5"></circle>
+                  <path class="eye-slash" d="M4 4l16 16"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="hint">Enter the deployment name, which can differ from the underlying model name.</div>
+
+            <div class="configure-actions">
+              <button class="primary" id="saveConfiguration" type="button">Save AI configuration</button>
+            </div>
+            <div class="error hidden" id="configurationError"></div>
+
+            <div class="security-note">
+              The assistant can only call bounded, read-only snapshot tools. It cannot execute arbitrary Azure CLI, PowerShell, Resource Graph, or KQL and cannot modify Azure resources.
+            </div>
+          </div>
+        </section>
+
+        <section class="panel monitoring-config-panel">
+          <div class="panel-header collapsible-panel-header">
+            <div>
+              <h2>Single-server monitoring</h2>
+              <div class="meta">Build a rolling encrypted baseline from approved Azure Monitor telemetry.</div>
+              <span class="status" id="monitoringStatus">No monitoring session</span>
+            </div>
+            <button class="table-action" id="toggleSingleServerPanel" type="button" aria-expanded="true" aria-controls="singleServerPanelBody">Collapse</button>
+          </div>
+          <div class="panel-body" id="singleServerPanelBody">
+            <label for="monitorServerSearch">Arc-enabled server</label>
+            <div class="monitor-search">
+              <input id="monitorServerSearch" type="search" maxlength="200" placeholder="Leave blank to list all connected servers">
+              <button id="findMonitorServers" type="button">Find</button>
+            </div>
+            <select class="monitor-select" id="monitorServer" aria-label="Server to monitor">
+              <option value="">Search for a server</option>
+            </select>
+            <div class="monitor-options">
+              <select id="monitorDuration" aria-label="Monitoring duration">
+                <option value="30">30-minute baseline</option>
+                <option value="60">1-hour baseline</option>
+                <option value="120" selected>2-hour baseline</option>
+                <option value="240">4-hour baseline</option>
+                <option value="480">8-hour baseline</option>
+              </select>
+              <button class="primary" id="startMonitoring" type="button">Start monitoring</button>
+            </div>
+            <div class="monitor-actions">
+              <button id="refreshMonitoring" type="button">Collect now</button>
+              <button id="stopMonitoring" type="button">Stop</button>
+              <button id="deleteMonitoring" type="button">Delete snapshot</button>
+            </div>
+            <div class="monitor-summary hidden" id="monitorSummary">
+              <strong id="monitorServerName"></strong>
+              <div class="meta" id="monitorWindow"></div>
+              <div class="meta" id="monitorCollected"></div>
+              <div class="monitor-counts">
+                <div><b id="monitorMetricCount">0</b><span>Metric samples</span></div>
+                <div><b id="monitorEventCount">0</b><span>Log events</span></div>
+                <div><b id="monitorObservationCount">0</b><span>Observations</span></div>
+              </div>
+            </div>
+            <div class="error hidden" id="monitoringError"></div>
+            <div class="security-note">
+              One server is monitored at a time. Data is capped to eight hours and stored separately with AES-256-GCM encryption and a Windows DPAPI-protected key.
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="content-column">
+        <section class="panel chat-panel">
+          <div class="panel-header">
+            <h2>Ask about the current Arc estate</h2>
+            <div class="meta">Answers are advisory. Verify important conclusions against the linked dashboard views and Azure.</div>
+          </div>
+          <div>
+            <div class="messages" id="messages">
+              <div class="empty" id="emptyState">Configure a Foundry model, then ask a question about servers, SQL, Kubernetes, lifecycle, connectivity, updates, or security posture.</div>
+            </div>
+            <div class="suggestions">
+              <button type="button" data-question="Summarize the most important risks in the current Arc estate.">Summarize current risks</button>
+              <button type="button" data-question="Which Arc servers need the most immediate attention and why?">Servers needing attention</button>
+              <button type="button" data-question="Summarize SQL Defender and monitoring coverage.">SQL protection coverage</button>
+              <button type="button" data-question="Which Kubernetes clusters have connectivity or health concerns?">Kubernetes concerns</button>
+              <button type="button" data-question="Summarize the monitored server baseline and identify anomalies or risks.">Analyze monitored server</button>
+              <button type="button" data-question="Review recent monitored-server logs, alerts, connectivity, and updates.">Review monitored logs</button>
+              <button type="button" data-question="Compare the servers in the monitored workload and identify which need attention first.">Compare monitored workload</button>
+              <button type="button" data-question="Summarize how risks changed over time for the monitored workload.">Review workload risks</button>
+            </div>
+          </div>
+          <div class="composer">
+            <textarea id="prompt" maxlength="8000" placeholder="Ask a read-only question about the current dashboard data..." aria-label="Question for Arc AI Assistant"></textarea>
+            <div class="composer-row">
+              <span class="hint" id="requestStatus">Conversation is kept only in this browser tab.</span>
+              <button class="primary" id="send" type="button" disabled>Send question</button>
+            </div>
+            <div class="error hidden" id="chatError"></div>
+          </div>
+        </section>
+
+        <section class="panel monitor-dashboard">
+          <div class="panel-header">
+            <div>
+              <h2>Live monitored server detail</h2>
+              <div class="meta" id="monitorVisualSubtitle">Start a monitoring session to visualize its encrypted collected data.</div>
+            </div>
+            <div>
+              <div class="live-label"><span class="live-dot" id="monitorLiveDot"></span><span id="monitorVisualUpdated">Waiting for a session</span></div>
+              <button class="table-action" id="toggleLiveMonitorPanel" type="button" aria-expanded="true" aria-controls="liveMonitorPanelBody">Collapse</button>
+            </div>
+          </div>
+          <div class="panel-body monitor-visual-body" id="liveMonitorPanelBody">
+            <div class="monitor-empty" id="monitorVisualEmpty">No monitored-server data is available.</div>
+            <div class="hidden" id="monitorVisualContent">
+              <div class="monitor-kpis" id="monitorKpis"></div>
+              <div class="chart-grid" id="monitorCharts"></div>
+              <div class="monitor-table-wrap">
+                <div class="monitor-table-title">
+                  <span>Operational timeline</span>
+                  <button class="table-action" id="toggleTimeline" type="button" aria-expanded="true" aria-controls="monitorTimelineContent">Collapse</button>
+                </div>
+                <div id="monitorTimelineContent">
+                  <div class="monitor-table-scroll">
+                    <table class="monitor-table">
+                      <thead><tr><th>Observed</th><th>Connectivity</th><th>Alerts</th><th>Updates</th><th>Reboot</th></tr></thead>
+                      <tbody id="monitorTimelineRows"></tbody>
+                    </table>
+                  </div>
+                  <div class="pagination">
+                    <button id="timelinePrevious" type="button">Previous</button>
+                    <span id="timelinePageStatus">Page 1 of 1</span>
+                    <button id="timelineNext" type="button">Next</button>
+                  </div>
+                </div>
+              </div>
+              <div class="monitor-table-wrap">
+                <div class="monitor-table-title">
+                  <span>Recent collected events</span>
+                  <button class="table-action" id="toggleEvents" type="button" aria-expanded="true" aria-controls="monitorEventsContent">Collapse</button>
+                </div>
+                <div id="monitorEventsContent">
+                  <div class="monitor-table-scroll">
+                    <table class="monitor-table">
+                      <thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Source</th><th>Message</th></tr></thead>
+                      <tbody id="monitorEventRows"></tbody>
+                    </table>
+                  </div>
+                  <div class="pagination">
+                    <button id="eventsPrevious" type="button">Previous</button>
+                    <span id="eventsPageStatus">Page 1 of 1</span>
+                    <button id="eventsNext" type="button">Next</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="error hidden" id="monitorVisualError"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel workload-panel">
+        <div class="panel-header collapsible-panel-header">
+          <div>
+            <h2>Workload monitoring</h2>
+            <div class="meta">Collect a bounded encrypted summary baseline for up to 10 Arc-enabled servers.</div>
+            <span class="status" id="workloadStatus">No workload session</span>
+          </div>
+          <button class="table-action" id="toggleWorkloadPanel" type="button" aria-expanded="true" aria-controls="workloadPanelBody">Collapse</button>
+        </div>
+        <div class="panel-body monitor-visual-body" id="workloadPanelBody">
+          <div class="workload-builder">
+            <div>
+              <label for="workloadServerSearch">Find Arc-enabled servers</label>
+              <div class="monitor-search">
+                <input id="workloadServerSearch" type="search" maxlength="200" placeholder="Leave blank to list all connected servers">
+                <button id="findWorkloadServers" type="button">Find</button>
+              </div>
+              <div class="workload-results">
+                <details class="workload-picker" id="workloadServerPicker">
+                  <summary id="workloadServerPickerSummary">Search for connected servers</summary>
+                  <div class="workload-picker-options" id="workloadServerResults" role="group" aria-label="Connected workload server search results">
+                    <div class="workload-picker-empty">Search for connected servers.</div>
+                  </div>
+                </details>
+                <button id="addWorkloadServer" type="button">Add checked servers</button>
+              </div>
+              <div class="monitor-options">
+                <select id="workloadDuration" aria-label="Workload monitoring duration">
+                  <option value="30">30-minute baseline</option>
+                  <option value="60">1-hour baseline</option>
+                  <option value="120" selected>2-hour baseline</option>
+                  <option value="240">4-hour baseline</option>
+                  <option value="480">8-hour baseline</option>
+                </select>
+                <button class="primary" id="startWorkloadMonitoring" type="button">Start workload monitoring</button>
+              </div>
+              <div class="monitor-actions">
+                <button id="refreshWorkloadMonitoring" type="button">Collect now</button>
+                <button id="stopWorkloadMonitoring" type="button">Stop</button>
+                <button id="deleteWorkloadMonitoring" type="button">Delete snapshot</button>
+              </div>
+              <div class="error hidden" id="workloadError"></div>
+            </div>
+            <div>
+              <div class="workload-status-row">
+                <strong>Selected servers</strong>
+                <div class="workload-status-actions">
+                  <span class="meta" id="workloadSelectedCount">0 of 10 selected</span>
+                  <button class="table-action" id="toggleSelectedServers" type="button" aria-expanded="true" aria-controls="workloadSelectedPanelBody">Collapse</button>
+                </div>
+              </div>
+              <div id="workloadSelectedPanelBody">
+                <div class="selected-servers" id="workloadSelectedServers">
+                  <div class="meta">Search for and add between 1 and 10 servers.</div>
+                </div>
+                <div class="security-note">
+                  Workload monitoring stores summary health, performance, connectivity, alert, update, and reboot observations separately from single-server telemetry.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="monitor-empty" id="workloadVisualEmpty">No workload monitoring data is available.</div>
+          <div class="hidden monitor-visual-body" id="workloadVisualContent">
+            <div class="workload-status-row">
+              <div class="meta" id="workloadWindow"></div>
+              <div class="live-label"><span class="live-dot" id="workloadLiveDot"></span><span id="workloadUpdated"></span></div>
+            </div>
+            <div class="workload-kpis" id="workloadKpis"></div>
+            <div class="monitor-table-wrap">
+              <div class="monitor-table-title">Latest workload comparison</div>
+              <div class="monitor-table-scroll">
+                <table class="monitor-table">
+                  <thead><tr><th>Server</th><th>CPU</th><th>Memory</th><th>Disk free</th><th>Disk I/O</th><th>Network</th><th>Alerts</th><th>Updates</th><th>Reboot</th><th>Heartbeat</th></tr></thead>
+                  <tbody id="workloadComparisonRows"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="monitor-table-wrap hidden" id="workloadServerDetail">
+              <div class="monitor-table-title">
+                <span id="workloadServerDetailTitle">Arc-enabled server detail</span>
+                <button class="table-action" id="closeWorkloadServerDetail" type="button" aria-expanded="true" aria-controls="workloadServerDetail">Collapse details</button>
+              </div>
+              <div class="panel-body">
+                <div class="meta" id="workloadServerDetailSubtitle"></div>
+                <div class="monitor-kpis" id="workloadServerDetailKpis"></div>
+                <div class="workload-server-facts" id="workloadServerDetailFacts"></div>
+              </div>
+            </div>
+            <div class="monitor-table-wrap">
+              <div class="monitor-table-title">Workload risk timeline</div>
+              <div class="monitor-table-scroll">
+                <table class="monitor-table">
+                  <thead><tr><th>Observed</th><th>Servers</th><th>Unhealthy</th><th>Disconnected</th><th>Alerts</th><th>Updates</th><th>Reboot pending</th></tr></thead>
+                  <tbody id="workloadTimelineRows"></tbody>
+                </table>
+              </div>
+              <div class="pagination">
+                <button id="workloadPrevious" type="button">Previous</button>
+                <span id="workloadPageStatus">Page 1 of 1</span>
+                <button id="workloadNext" type="button">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const state = {
+      configured: false, configuredTenantId: '', authenticated: false, busy: false,
+      refreshing: false, loginState: 'idle', loginTimer: null, refreshTimer: null, messages: [],
+      monitoring: null, monitoringBusy: false, monitoringTimer: null, monitoringDetailTimer: null,
+      monitoringDetail: null, timelinePage: 0, eventsPage: 0,
+      timelineCollapsed: true, eventsCollapsed: true,
+      singlePanelCollapsed: false, livePanelCollapsed: false, workloadPanelCollapsed: false,
+      workload: null, workloadBusy: false, workloadTimer: null, workloadDetailTimer: null,
+      workloadDetail: null, workloadSelected: new Map(), workloadSearchResults: new Map(), workloadPage: 0,
+      workloadChecked: new Set(), workloadSearchTotal: null, workloadSelectedServerKey: null,
+      selectedServersCollapsed: false
+    };
+    const byId = id => document.getElementById(id);
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {
+        cache: 'no-store',
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+      return data;
+    }
+
+    function setError(id, error) {
+      const element = byId(id);
+      element.textContent = error?.message || String(error);
+      element.classList.remove('hidden');
+    }
+
+    function clearError(id) {
+      byId(id).classList.add('hidden');
+    }
+
+    function updateControls() {
+      const tenantMatchesConfiguration = byId('foundryTenantId').value.trim().toLowerCase() === state.configuredTenantId;
+      byId('send').disabled = !state.configured || !tenantMatchesConfiguration || !state.authenticated || state.busy || !byId('prompt').value.trim();
+      byId('saveConfiguration').disabled = state.busy;
+      byId('foundryLogin').disabled = state.busy || state.loginState === 'running';
+      byId('foundryTenantId').disabled = state.loginState === 'running';
+      byId('toggleFoundryTenantVisibility').disabled = !byId('foundryTenantId').value;
+      byId('toggleEndpointVisibility').disabled = !byId('endpoint').value;
+      byId('toggleModelVisibility').disabled = !byId('model').value;
+      byId('refresh').disabled = state.refreshing;
+      const monitoringActive = state.monitoring?.state === 'active';
+      byId('startMonitoring').disabled = state.monitoringBusy || monitoringActive || !byId('monitorServer').value;
+      byId('findMonitorServers').disabled = state.monitoringBusy;
+      byId('refreshMonitoring').disabled = state.monitoringBusy || !monitoringActive;
+      byId('stopMonitoring').disabled = state.monitoringBusy || !monitoringActive;
+      byId('deleteMonitoring').disabled = state.monitoringBusy || !state.monitoring?.exists;
+      byId('monitorServer').disabled = state.monitoringBusy || monitoringActive;
+      byId('monitorDuration').disabled = state.monitoringBusy || monitoringActive;
+      const workloadActive = state.workload?.state === 'active';
+      byId('findWorkloadServers').disabled = state.workloadBusy || workloadActive;
+      byId('addWorkloadServer').disabled = state.workloadBusy || workloadActive ||
+        !state.workloadChecked.size || state.workloadSelected.size >= 10;
+      byId('workloadServerPicker').setAttribute('aria-disabled', String(state.workloadBusy || workloadActive));
+      if (state.workloadBusy || workloadActive) byId('workloadServerPicker').open = false;
+      byId('workloadServerResults').querySelectorAll('input').forEach(input => {
+        input.disabled = state.workloadBusy || workloadActive || state.workloadSelected.has(input.value);
+        const label = input.nextElementSibling;
+        const server = state.workloadSearchResults.get(input.value);
+        if (label && server) {
+          label.textContent = `${server.name} | ${server.resourceGroup || 'Unknown resource group'}${state.workloadSelected.has(input.value) ? ' | Already selected' : ''}`;
+        }
+      });
+      byId('workloadSelectedServers').querySelectorAll('button').forEach(button => {
+        button.disabled = state.workloadBusy || workloadActive;
+      });
+      byId('workloadDuration').disabled = state.workloadBusy || workloadActive;
+      byId('startWorkloadMonitoring').disabled = state.workloadBusy || workloadActive ||
+        state.workloadSelected.size < 1 || state.workloadSelected.size > 10;
+      byId('refreshWorkloadMonitoring').disabled = state.workloadBusy || !workloadActive;
+      byId('stopWorkloadMonitoring').disabled = state.workloadBusy || !workloadActive;
+      byId('deleteWorkloadMonitoring').disabled = state.workloadBusy || !state.workload?.exists;
+    }
+
+    function applyStatus(status) {
+      state.configured = Boolean(status.configured);
+      state.configuredTenantId = (status.tenantId || '').toLowerCase();
+      byId('foundryTenantId').value = status.tenantId || byId('foundryTenantId').value;
+      byId('endpoint').value = status.endpoint || '';
+      byId('model').value = status.model || '';
+      const badge = byId('connectionStatus');
+      badge.textContent = state.configured ? `Configured: ${status.model}` : 'Configuration required';
+      badge.className = `status${state.configured ? ' good' : ''}`;
+      updateControls();
+    }
+
+    function applyAuthenticationStatus(result) {
+      state.authenticated = Boolean(result.authenticated);
+      state.loginState = result.state || 'idle';
+      if (result.tenantId && (state.loginState === 'running' || !byId('foundryTenantId').value.trim())) {
+        byId('foundryTenantId').value = result.tenantId;
+      }
+      const badge = byId('authenticationStatus');
+      badge.textContent = state.authenticated
+        ? `Authenticated to Foundry tenant ${result.tenantId}`
+        : result.state === 'running' ? 'Waiting for device sign-in' : result.state === 'failed' ? 'Foundry sign-in failed' : 'Foundry sign-in required';
+      badge.className = `status${state.authenticated ? ' good' : ''}`;
+      parseDevicePrompt(result.output || '');
+      if (result.error) setError('configurationError', new Error(result.error));
+      updateControls();
+    }
+
+    function parseDevicePrompt(output) {
+      byId('loginOutput').textContent = output;
+      byId('loginOutput').classList.toggle('hidden', !output);
+      const code = output.match(/enter the code\s+([A-Z0-9-]+)/i)?.[1];
+      const url = output.match(/https:\/\/[^\s]+/i)?.[0] || 'https://microsoft.com/devicelogin';
+      if (code) {
+        byId('deviceCode').textContent = code;
+        byId('deviceUrl').href = url;
+        byId('devicePrompt').classList.remove('hidden');
+      }
+      if (!output || state.authenticated) {
+        byId('devicePrompt').classList.add('hidden');
+      }
+    }
+
+    function addMessage(role, content, metadata = '') {
+      byId('emptyState')?.remove();
+      const message = document.createElement('div');
+      message.className = `message ${role}`;
+      const label = document.createElement('div');
+      label.className = 'role';
+      label.textContent = role === 'user' ? 'You' : 'Arc AI Assistant';
+      const body = document.createElement('div');
+      body.textContent = content;
+      message.append(label, body);
+      if (metadata) {
+        const meta = document.createElement('div');
+        meta.className = 'message-meta';
+        meta.textContent = metadata;
+        message.append(meta);
+      }
+      byId('messages').append(message);
+      byId('messages').scrollTop = byId('messages').scrollHeight;
+    }
+
+    function trimConversation(messages) {
+      const result = [...messages];
+      const characterCount = () => result.reduce((total, message) => total + message.content.length, 0);
+      while (result.length > 12 || characterCount() > 24000) {
+        result.splice(0, Math.min(2, result.length));
+      }
+      return result;
+    }
+
+    async function loadStatus() {
+      try {
+        const status = await request('/api/ai/status');
+        applyStatus(status);
+        await loadAuthenticationStatus(status.tenantId || '');
+      } catch (error) {
+        setError('configurationError', error);
+      }
+    }
+
+    function configureRefreshInterval() {
+      const allowed = [300000, 600000, 900000];
+      const saved = Number(localStorage.getItem('arcDashboardRefreshInterval'));
+      const interval = allowed.includes(saved) ? saved : allowed[0];
+      byId('refreshInterval').value = String(interval);
+      if (state.refreshTimer) clearInterval(state.refreshTimer);
+      state.refreshTimer = setInterval(refresh, interval);
+    }
+
+    async function refresh() {
+      if (state.refreshing) return;
+      state.refreshing = true;
+      const button = byId('refresh');
+      button.textContent = 'Refreshing...';
+      clearError('configurationError');
+      updateControls();
+      try {
+        await request('/api/operations/summary');
+        if (state.monitoring?.state === 'active') {
+          await request('/api/monitoring/session/refresh', { method: 'POST', body: '{}' });
+        }
+        if (state.workload?.state === 'active') {
+          await request('/api/workload-monitoring/session/refresh', { method: 'POST', body: '{}' });
+        }
+        await loadStatus();
+        await loadMonitoringStatus();
+        await loadWorkloadStatus();
+      } catch (error) {
+        setError('configurationError', error);
+      } finally {
+        state.refreshing = false;
+        button.textContent = 'Refresh Now';
+        updateControls();
+      }
+    }
+
+    function ensureMonitoringServerOption(server) {
+      if (!server?.key) return;
+      let option = [...byId('monitorServer').options].find(item => item.value === server.key);
+      if (!option) {
+        option = new Option(`${server.name} | ${server.resourceGroup || 'Unknown resource group'}`, server.key);
+        byId('monitorServer').add(option);
+      }
+      byId('monitorServer').value = server.key;
+    }
+
+    async function findMonitoringServers() {
+      clearError('monitoringError');
+      const query = byId('monitorServerSearch').value.trim();
+      state.monitoringBusy = true;
+      updateControls();
+      try {
+        const params = new URLSearchParams({
+          search: query, arcStatus: 'Connected', pageSize: '250', sort: 'name', direction: 'ascending'
+        });
+        const result = await request(`/api/operations/servers?${params}`);
+        const select = byId('monitorServer');
+        select.replaceChildren(new Option(
+          result.servers.length ? 'Select one connected server' : 'No connected servers found', ''
+        ));
+        for (const server of result.servers) {
+          select.add(new Option(`${server.name} | ${server.resourceGroup || 'Unknown resource group'}`, server.key));
+        }
+      } catch (error) {
+        setError('monitoringError', error);
+      } finally {
+        state.monitoringBusy = false;
+        updateControls();
+      }
+    }
+
+    function getMonitoringBadgeClass(result) {
+      if (!result?.exists || result.state === 'none') return 'status';
+      return result.state === 'active' && !result.lastError ? 'status good' : 'status bad';
+    }
+
+    function renderMonitoringStatus(result) {
+      state.monitoring = result;
+      const badge = byId('monitoringStatus');
+      const labels = {
+        active: 'Monitoring active',
+        completed: 'Baseline complete',
+        stopped: 'Monitoring stopped',
+        none: 'No monitoring session'
+      };
+      badge.textContent = labels[result.state] || 'Monitoring unavailable';
+      badge.className = getMonitoringBadgeClass(result);
+      byId('monitorSummary').classList.toggle('hidden', !result.exists);
+      if (result.exists) {
+        ensureMonitoringServerOption(result.server);
+        byId('monitorServerName').textContent = result.server.name;
+        const start = new Date(result.startedAt).toLocaleString();
+        const end = new Date(result.activeUntil).toLocaleString();
+        byId('monitorWindow').textContent = `${result.windowMinutes}-minute rolling window | Session ${start} to ${end}`;
+        byId('monitorCollected').textContent = result.lastCollectedAt
+          ? `Last collected ${new Date(result.lastCollectedAt).toLocaleString()}`
+          : 'Initial historical collection is pending.';
+        byId('monitorMetricCount').textContent = result.metricSamples;
+        byId('monitorEventCount').textContent = result.eventSamples;
+        byId('monitorObservationCount').textContent = result.observationSamples;
+      }
+
+      if (result.lastError) setError('monitoringError', new Error(result.lastError));
+      updateControls();
+    }
+
+    function formatNumber(value, maximumFractionDigits = 1) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits }) : 'N/A';
+    }
+
+    function formatMetricValue(value, unit) {
+      if (value === null || value === undefined || value === '') return 'N/A';
+      if (unit === 'percent') return `${formatNumber(value)}%`;
+      if (unit === 'bytesPerSecond') {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return 'N/A';
+        if (number >= 1048576) return `${formatNumber(number / 1048576)} MB/s`;
+        if (number >= 1024) return `${formatNumber(number / 1024)} KB/s`;
+        return `${formatNumber(number)} B/s`;
+      }
+      if (unit === 'megabytes') return `${formatNumber(value)} MB`;
+      if (unit === 'operationsPerSecond') return `${formatNumber(value)} IOPS`;
+      if (unit === 'milliseconds') return `${formatNumber(value, 2)} ms`;
+      return formatNumber(value);
+    }
+
+    function sumAvailableMetric(rows, property) {
+      const values = rows
+        .map(row => row[property])
+        .filter(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)))
+        .map(Number);
+      return values.length ? values.reduce((total, value) => total + value, 0) : null;
+    }
+
+    function weightedAverageMetric(rows, property, weightProperties) {
+      const samples = rows
+        .map(row => {
+          const value = row[property];
+          if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return null;
+          const weight = weightProperties
+            .map(weightProperty => Number(row[weightProperty]))
+            .find(candidate => Number.isFinite(candidate) && candidate > 0);
+          return { value: Number(value), weight: weight || null };
+        })
+        .filter(Boolean);
+      if (!samples.length) return null;
+      const weighted = samples.filter(sample => sample.weight);
+      if (weighted.length) {
+        const totalWeight = weighted.reduce((total, sample) => total + sample.weight, 0);
+        return weighted.reduce((total, sample) => total + sample.value * sample.weight, 0) / totalWeight;
+      }
+      return samples.reduce((total, sample) => total + sample.value, 0) / samples.length;
+    }
+
+    function workloadStorageUsedPercent(rows) {
+      const usageRows = rows.map(row => {
+        const free = row.diskFreePercent;
+        return {
+          diskUsedPercent: free === null || free === undefined || free === ''
+            ? null : Math.max(0, Math.min(100, 100 - Number(free))),
+          totalStorageBytes: row.totalStorageBytes
+        };
+      });
+      return weightedAverageMetric(usageRows, 'diskUsedPercent', ['totalStorageBytes']);
+    }
+
+    function formatCapacity(value) {
+      if (value === null || value === undefined || value === '') return 'N/A';
+      const number = Number(value);
+      if (!Number.isFinite(number)) return 'N/A';
+      if (number >= 1099511627776) return `${formatNumber(number / 1099511627776)} TB`;
+      if (number >= 1073741824) return `${formatNumber(number / 1073741824)} GB`;
+      if (number >= 1048576) return `${formatNumber(number / 1048576)} MB`;
+      return `${formatNumber(number / 1024)} KB`;
+    }
+
+    function metricUnit(metric) {
+      if (['cpuPercent', 'memoryPercent', 'diskFreePercent'].includes(metric)) return 'percent';
+      if (['networkBytesPerSec', 'diskBytesPerSec', 'diskReadBytesPerSec', 'diskWriteBytesPerSec'].includes(metric)) return 'bytesPerSecond';
+      if (['diskIops', 'diskReadIops', 'diskWriteIops'].includes(metric)) return 'operationsPerSecond';
+      if (['diskReadLatencyMs', 'diskWriteLatencyMs'].includes(metric)) return 'milliseconds';
+      return 'count';
+    }
+
+    function createCell(row, text, className = '') {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      if (className) cell.className = className;
+      row.append(cell);
+    }
+
+    function getMetricDelta(value, previousValue) {
+      const currentNumber = value === null || value === undefined || value === '' ? null : Number(value);
+      const previousNumber = previousValue === null || previousValue === undefined || previousValue === '' ? null : Number(previousValue);
+      if (!Number.isFinite(currentNumber) || !Number.isFinite(previousNumber)) {
+        return { text: 'No prior value', tone: 'same', title: '' };
+      }
+      if (previousNumber === 0) {
+        return currentNumber === 0
+          ? { text: '• 0%', tone: 'same', title: 'Unchanged from the previous observation' }
+          : { text: '▲ new', tone: 'up', title: 'Rose from zero in the previous observation' };
+      }
+      const change = ((currentNumber - previousNumber) / Math.abs(previousNumber)) * 100;
+      if (Math.abs(change) < 0.05) {
+        return { text: '• 0%', tone: 'same', title: 'Unchanged from the previous observation' };
+      }
+      const rose = change > 0;
+      return {
+        text: `${rose ? '▲' : '▼'} ${formatNumber(Math.abs(change))}%`,
+        tone: rose ? 'up' : 'down',
+        title: `${rose ? 'Rose' : 'Fell'} ${formatNumber(Math.abs(change))}% from the previous observation`
+      };
+    }
+
+    function createMetricDeltaCell(row, value, unit, previousValue, detail = '') {
+      const cell = document.createElement('td');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'metric-with-delta';
+      const current = document.createElement('span');
+      current.textContent = detail || formatMetricValue(value, unit);
+      const change = getMetricDelta(value, previousValue);
+      const delta = document.createElement('span');
+      delta.className = `metric-delta ${change.tone}`;
+      delta.textContent = change.text;
+      if (change.title) delta.title = change.title;
+      wrapper.append(current);
+      wrapper.append(delta);
+      cell.append(wrapper);
+      row.append(cell);
+    }
+
+    function heartbeatState(server, observedAt) {
+      if (String(server.arcStatus).toLowerCase() !== 'connected' || !server.lastHeartbeat) return 'bad';
+      const heartbeat = new Date(server.lastHeartbeat).getTime();
+      const observed = new Date(observedAt).getTime();
+      return Number.isFinite(heartbeat) && Number.isFinite(observed) && observed - heartbeat <= 15 * 60 * 1000 ? 'good' : 'bad';
+    }
+
+    function addKpi(label, value, detail = '', tone = '') {
+      const card = document.createElement('div');
+      card.className = 'monitor-kpi';
+      const name = document.createElement('span');
+      name.textContent = label;
+      const number = document.createElement('strong');
+      number.textContent = value;
+      if (tone) number.className = tone;
+      const small = document.createElement('small');
+      small.textContent = detail;
+      card.append(name, number, small);
+      byId('monitorKpis').append(card);
+    }
+
+    function createMetricChart(title, metricNames, detail) {
+      const selectedMetric = metricNames.find(metric => detail.metrics.some(row => row.metric === metric));
+      const matchingRows = selectedMetric ? detail.metrics.filter(row => row.metric === selectedMetric) : [];
+      const sourceCounts = matchingRows.reduce((counts, row) => {
+        counts.set(row.source, (counts.get(row.source) || 0) + 1);
+        return counts;
+      }, new Map());
+      const selectedSource = [...sourceCounts.entries()]
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0];
+      const rows = selectedSource ? matchingRows.filter(row => row.source === selectedSource) : [];
+      const observationMetric = metricNames.find(name => name !== 'memoryAvailableMB');
+      const observationRows = detail.observations
+        .filter(row => Number.isFinite(Number(row[observationMetric])))
+        .map(row => ({
+          time: row.time, metric: observationMetric, value: Number(row[observationMetric]),
+          unit: metricUnit(observationMetric),
+          source: 'Arc snapshot'
+        }));
+      const samples = rows.length ? rows : observationRows;
+      const container = document.createElement('div');
+      container.className = 'monitor-chart';
+      const heading = document.createElement('div');
+      heading.className = 'chart-heading';
+      const headingTitle = document.createElement('strong');
+      headingTitle.textContent = title;
+      const summary = document.createElement('span');
+      const latest = samples.at(-1);
+      summary.textContent = latest ? `${formatMetricValue(latest.value, latest.unit)} latest | ${samples.length} samples | ${latest.source}` : 'No samples';
+      heading.append(headingTitle, summary);
+      container.append(heading);
+      if (!samples.length) {
+        const empty = document.createElement('div');
+        empty.className = 'chart-empty';
+        empty.textContent = 'Waiting for collected metric data';
+        container.append(empty);
+        return container;
+      }
+
+      const width = 600;
+      const height = 180;
+      const padding = { left: 45, right: 12, top: 12, bottom: 25 };
+      const values = samples.map(row => Number(row.value)).filter(Number.isFinite);
+      let minimum = Math.min(...values);
+      let maximum = Math.max(...values);
+      if (minimum === maximum) {
+        minimum -= Math.max(Math.abs(minimum) * .05, 1);
+        maximum += Math.max(Math.abs(maximum) * .05, 1);
+      }
+      const timestamps = samples.map(row => new Date(row.time).getTime());
+      let firstTime = Math.min(...timestamps);
+      let lastTime = Math.max(...timestamps);
+      if (firstTime === lastTime) lastTime += 60000;
+      const x = time => padding.left + ((new Date(time).getTime() - firstTime) / (lastTime - firstTime)) * (width - padding.left - padding.right);
+      const y = value => padding.top + (1 - (Number(value) - minimum) / (maximum - minimum)) * (height - padding.top - padding.bottom);
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      for (let index = 0; index < 4; index++) {
+        const gridY = padding.top + index * (height - padding.top - padding.bottom) / 3;
+        const line = document.createElementNS(svg.namespaceURI, 'line');
+        line.setAttribute('x1', padding.left);
+        line.setAttribute('x2', width - padding.right);
+        line.setAttribute('y1', gridY);
+        line.setAttribute('y2', gridY);
+        line.setAttribute('class', 'chart-gridline');
+        svg.append(line);
+        const label = document.createElementNS(svg.namespaceURI, 'text');
+        label.setAttribute('x', '2');
+        label.setAttribute('y', String(gridY + 3));
+        label.setAttribute('class', 'chart-label');
+        label.textContent = formatMetricValue(maximum - index * (maximum - minimum) / 3, latest.unit);
+        svg.append(label);
+      }
+      const points = samples.map(row => `${x(row.time)},${y(row.value)}`).join(' ');
+      const area = document.createElementNS(svg.namespaceURI, 'polygon');
+      area.setAttribute('points', `${padding.left},${height - padding.bottom} ${points} ${width - padding.right},${height - padding.bottom}`);
+      area.setAttribute('class', 'chart-area');
+      const line = document.createElementNS(svg.namespaceURI, 'polyline');
+      line.setAttribute('points', points);
+      line.setAttribute('class', 'chart-line');
+      svg.append(area, line);
+      const startLabel = document.createElementNS(svg.namespaceURI, 'text');
+      startLabel.setAttribute('x', String(padding.left));
+      startLabel.setAttribute('y', String(height - 4));
+      startLabel.setAttribute('class', 'chart-label');
+      startLabel.textContent = new Date(firstTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const endLabel = document.createElementNS(svg.namespaceURI, 'text');
+      endLabel.setAttribute('x', String(width - padding.right));
+      endLabel.setAttribute('y', String(height - 4));
+      endLabel.setAttribute('text-anchor', 'end');
+      endLabel.setAttribute('class', 'chart-label');
+      endLabel.textContent = new Date(lastTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      svg.append(startLabel, endLabel);
+      container.append(svg);
+      return container;
+    }
+
+    function updatePagination(prefix, page, totalRows) {
+      const pageCount = Math.max(1, Math.ceil(totalRows / 10));
+      byId(`${prefix}PageStatus`).textContent = `Page ${page + 1} of ${pageCount} | ${totalRows} records`;
+      byId(`${prefix}Previous`).disabled = page === 0;
+      byId(`${prefix}Next`).disabled = page >= pageCount - 1;
+    }
+
+    function renderMonitoringTimeline() {
+      const timeline = [...(state.monitoringDetail?.observations || [])].reverse();
+      const pageCount = Math.max(1, Math.ceil(timeline.length / 10));
+      state.timelinePage = Math.min(state.timelinePage, pageCount - 1);
+      const pageRows = timeline.slice(state.timelinePage * 10, state.timelinePage * 10 + 10);
+      byId('monitorTimelineRows').replaceChildren();
+      if (!pageRows.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = 'No observations are available.';
+        row.append(cell);
+        byId('monitorTimelineRows').append(row);
+      } else {
+        for (const item of pageRows) {
+          const row = document.createElement('tr');
+          createCell(row, new Date(item.time).toLocaleString());
+          createCell(row, `${item.health || 'Unknown'} | ${item.arcStatus || 'Unknown'}`);
+          createCell(row, `${item.activeAlerts} active | ${item.criticalAlerts} critical`, item.criticalAlerts > 0 ? 'severity-critical' : item.warningAlerts > 0 ? 'severity-warning' : '');
+          createCell(row, `${item.pendingUpdates} pending | ${item.securityUpdates} security`, item.criticalUpdates > 0 ? 'severity-critical' : item.pendingUpdates > 0 ? 'severity-warning' : '');
+          createCell(row, item.rebootPending ? 'Pending' : 'No');
+          byId('monitorTimelineRows').append(row);
+        }
+      }
+      updatePagination('timeline', state.timelinePage, timeline.length);
+    }
+
+    function renderMonitoringEvents() {
+      const events = state.monitoringDetail?.events || [];
+      const pageCount = Math.max(1, Math.ceil(events.length / 10));
+      state.eventsPage = Math.min(state.eventsPage, pageCount - 1);
+      const pageRows = events.slice(state.eventsPage * 10, state.eventsPage * 10 + 10);
+      byId('monitorEventRows').replaceChildren();
+      if (!pageRows.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = 'No Windows Event, Syslog, or connectivity events were collected.';
+        row.append(cell);
+        byId('monitorEventRows').append(row);
+      } else {
+        for (const event of pageRows) {
+          const row = document.createElement('tr');
+          createCell(row, new Date(event.time).toLocaleString());
+          const severityClass = /critical|error/i.test(event.severity) ? 'severity-critical' : /warn/i.test(event.severity) ? 'severity-warning' : '';
+          createCell(row, event.severity || 'Information', severityClass);
+          createCell(row, event.category || 'event');
+          createCell(row, event.source || 'Unknown');
+          createCell(row, event.message || '');
+          byId('monitorEventRows').append(row);
+        }
+      }
+      updatePagination('events', state.eventsPage, events.length);
+    }
+
+    function setTimelineCollapsed(collapsed) {
+      state.timelineCollapsed = collapsed;
+      byId('monitorTimelineContent').classList.toggle('hidden', collapsed);
+      byId('toggleTimeline').textContent = collapsed ? 'Expand' : 'Collapse';
+      byId('toggleTimeline').setAttribute('aria-expanded', String(!collapsed));
+    }
+
+    function setEventsCollapsed(collapsed) {
+      state.eventsCollapsed = collapsed;
+      byId('monitorEventsContent').classList.toggle('hidden', collapsed);
+      byId('toggleEvents').textContent = collapsed ? 'Expand' : 'Collapse';
+      byId('toggleEvents').setAttribute('aria-expanded', String(!collapsed));
+    }
+
+    function setPanelCollapsed(bodyId, buttonId, collapsed) {
+      byId(bodyId).classList.toggle('hidden', collapsed);
+      const button = byId(buttonId);
+      button.textContent = collapsed ? 'Expand' : 'Collapse';
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.closest('.panel').classList.toggle('panel-collapsed', collapsed);
+    }
+
+    function setSelectedServersCollapsed(collapsed) {
+      state.selectedServersCollapsed = collapsed;
+      byId('workloadSelectedPanelBody').classList.toggle('hidden', collapsed);
+      byId('toggleSelectedServers').textContent = collapsed ? 'Expand' : 'Collapse';
+      byId('toggleSelectedServers').setAttribute('aria-expanded', String(!collapsed));
+    }
+
+    function renderMonitoringDetail(detail) {
+      const sessionChanged = state.monitoringDetail?.status?.sessionId !== detail?.status?.sessionId;
+      state.monitoringDetail = detail;
+      if (sessionChanged) {
+        state.timelinePage = 0;
+        state.eventsPage = 0;
+      }
+      const exists = Boolean(detail?.status?.exists);
+      byId('monitorVisualEmpty').classList.toggle('hidden', exists);
+      byId('monitorVisualContent').classList.toggle('hidden', !exists);
+      byId('monitorLiveDot').classList.toggle('active', detail?.status?.state === 'active');
+      if (!exists) {
+        byId('monitorVisualSubtitle').textContent = 'Start a monitoring session to visualize its encrypted collected data.';
+        byId('monitorVisualUpdated').textContent = 'Waiting for a session';
+        return;
+      }
+
+      const status = detail.status;
+      const latest = detail.observations.at(-1) || status.baseline?.latestObservation || {};
+      byId('monitorVisualSubtitle').textContent = `${status.server.name} | ${status.server.osType || 'Unknown OS'} | ${status.windowMinutes}-minute rolling baseline`;
+      const telemetryNote = status.telemetryPartial ? ' | partial telemetry' : '';
+      byId('monitorVisualUpdated').textContent = status.lastCollectedAt
+        ? `Updated ${new Date(status.lastCollectedAt).toLocaleTimeString()}${telemetryNote} | refreshes every minute`
+        : `Initial collection pending${telemetryNote} | refreshes every minute`;
+
+      byId('monitorKpis').replaceChildren();
+      const health = latest.health || 'Unknown';
+      const healthTone = /critical|error|disconnected/i.test(`${health} ${latest.arcStatus}`) ? 'critical' : /warning/i.test(health) ? 'warning' : '';
+      addKpi('Health', health, latest.arcStatus || 'Arc status unavailable', healthTone);
+      addKpi('CPU', formatMetricValue(latest.cpuPercent, 'percent'), 'Latest observation');
+      addKpi('Memory', formatMetricValue(latest.memoryPercent, 'percent'), 'Latest observation');
+      addKpi('Disk free', formatMetricValue(latest.diskFreePercent, 'percent'), 'Latest observation', Number(latest.diskFreePercent) < 15 ? 'critical' : Number(latest.diskFreePercent) < 25 ? 'warning' : '');
+      addKpi('Disk I/O', formatMetricValue(latest.diskIops, 'operationsPerSecond'), formatMetricValue(latest.diskBytesPerSec, 'bytesPerSecond'));
+      addKpi('Network', formatMetricValue(latest.networkBytesPerSec, 'bytesPerSecond'), 'Latest throughput');
+      addKpi('Active alerts', formatNumber(latest.activeAlerts, 0), `${formatNumber(latest.criticalAlerts, 0)} critical | ${formatNumber(latest.warningAlerts, 0)} warning`, Number(latest.criticalAlerts) > 0 ? 'critical' : Number(latest.warningAlerts) > 0 ? 'warning' : '');
+      addKpi('Pending updates', formatNumber(latest.pendingUpdates, 0), `${formatNumber(latest.securityUpdates, 0)} security | ${formatNumber(latest.criticalUpdates, 0)} critical`, Number(latest.criticalUpdates) > 0 ? 'critical' : Number(latest.pendingUpdates) > 0 ? 'warning' : '');
+      addKpi('Heartbeat', latest.lastHeartbeat ? new Date(latest.lastHeartbeat).toLocaleTimeString() : 'N/A', latest.rebootPending ? 'Reboot pending' : 'No reboot reported', latest.rebootPending ? 'warning' : '');
+
+      byId('monitorCharts').replaceChildren(
+        createMetricChart('CPU utilization', ['cpuPercent'], detail),
+        createMetricChart('Memory', ['memoryPercent', 'memoryAvailableMB'], detail),
+        createMetricChart('Disk free', ['diskFreePercent'], detail),
+        createMetricChart('Disk read IOPS', ['diskReadIops'], detail),
+        createMetricChart('Disk write IOPS', ['diskWriteIops'], detail),
+        createMetricChart('Disk read throughput', ['diskReadBytesPerSec'], detail),
+        createMetricChart('Disk write throughput', ['diskWriteBytesPerSec'], detail),
+        createMetricChart('Disk read latency', ['diskReadLatencyMs'], detail),
+        createMetricChart('Disk write latency', ['diskWriteLatencyMs'], detail),
+        createMetricChart('Disk queue length', ['diskQueueLength'], detail),
+        createMetricChart('Network throughput', ['networkBytesPerSec'], detail)
+      );
+      renderMonitoringTimeline();
+      renderMonitoringEvents();
+      setTimelineCollapsed(state.timelineCollapsed);
+      setEventsCollapsed(state.eventsCollapsed);
+    }
+
+    async function loadMonitoringDetail() {
+      try {
+        clearError('monitorVisualError');
+        renderMonitoringDetail(await request('/api/monitoring/session/detail'));
+      } catch (error) {
+        setError('monitorVisualError', error);
+      }
+    }
+
+    function renderWorkloadSelection() {
+      const container = byId('workloadSelectedServers');
+      container.replaceChildren();
+      if (!state.workloadSelected.size) {
+        const empty = document.createElement('div');
+        empty.className = 'meta';
+        empty.textContent = 'Search for and add between 1 and 10 servers.';
+        container.append(empty);
+      } else {
+        for (const server of state.workloadSelected.values()) {
+          const row = document.createElement('div');
+          row.className = 'selected-server';
+          const label = document.createElement('span');
+          label.textContent = `${server.name} | ${server.resourceGroup || 'Unknown resource group'}`;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.textContent = 'Remove';
+          remove.disabled = state.workloadBusy || state.workload?.state === 'active';
+          remove.addEventListener('click', () => {
+            state.workloadSelected.delete(server.key);
+            renderWorkloadSelection();
+            updateControls();
+          });
+          row.append(label, remove);
+          container.append(row);
+        }
+      }
+      byId('workloadSelectedCount').textContent = `${state.workloadSelected.size} of 10 selected`;
+    }
+
+    async function findWorkloadServers() {
+      clearError('workloadError');
+      const query = byId('workloadServerSearch').value.trim();
+      state.workloadBusy = true;
+      updateControls();
+      try {
+        const params = new URLSearchParams({
+          search: query, arcStatus: 'Connected', pageSize: '250', sort: 'name', direction: 'ascending'
+        });
+        const result = await request(`/api/operations/servers?${params}`);
+        state.workloadSearchResults = new Map(result.servers.map(server => [server.key, server]));
+        state.workloadSearchTotal = Number(result.page?.total) || 0;
+        state.workloadChecked.clear();
+        const options = byId('workloadServerResults');
+        options.replaceChildren();
+        if (!result.servers.length) {
+          const empty = document.createElement('div');
+          empty.className = 'workload-picker-empty';
+          empty.textContent = 'No connected servers matched the search.';
+          options.append(empty);
+        }
+        for (const server of result.servers) {
+          const option = document.createElement('label');
+          option.className = 'workload-picker-option';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.value = server.key;
+          checkbox.disabled = state.workloadSelected.has(server.key);
+          checkbox.addEventListener('change', () => {
+            if (checkbox.checked) state.workloadChecked.add(server.key);
+            else state.workloadChecked.delete(server.key);
+            updateWorkloadPickerSummary();
+            updateControls();
+          });
+          const label = document.createElement('span');
+          label.textContent = `${server.name} | ${server.resourceGroup || 'Unknown resource group'}${state.workloadSelected.has(server.key) ? ' | Already selected' : ''}`;
+          option.append(checkbox, label);
+          options.append(option);
+        }
+        byId('workloadServerPicker').open = true;
+        updateWorkloadPickerSummary();
+      } catch (error) {
+        setError('workloadError', error);
+      } finally {
+        state.workloadBusy = false;
+        updateControls();
+      }
+    }
+
+    function updateWorkloadPickerSummary() {
+      const count = state.workloadChecked.size;
+      byId('workloadServerPickerSummary').textContent = count
+        ? `${count} connected server${count === 1 ? '' : 's'} checked`
+        : state.workloadSearchTotal === 0
+          ? 'No connected servers matched the search'
+          : state.workloadSearchTotal !== null
+            ? `${state.workloadSearchResults.size} of ${state.workloadSearchTotal} connected server${state.workloadSearchTotal === 1 ? '' : 's'} found`
+            : 'Search for connected servers';
+    }
+
+    function resetWorkloadServerPicker() {
+      state.workloadChecked.clear();
+      state.workloadSearchResults.clear();
+      state.workloadSearchTotal = null;
+      byId('workloadServerResults').replaceChildren();
+      const empty = document.createElement('div');
+      empty.className = 'workload-picker-empty';
+      empty.textContent = 'Search for connected servers.';
+      byId('workloadServerResults').append(empty);
+      byId('workloadServerPicker').open = false;
+      updateWorkloadPickerSummary();
+    }
+
+    async function addWorkloadServer() {
+      const keys = [...state.workloadChecked].filter(key => !state.workloadSelected.has(key));
+      if (!keys.length) return;
+      if (state.workloadSelected.size + keys.length > 10) {
+        setError('workloadError', new Error(`Select at most ${10 - state.workloadSelected.size} more server(s). A workload can contain at most 10 servers.`));
+        return;
+      }
+      clearError('workloadError');
+      state.workloadBusy = true;
+      updateControls();
+      try {
+        const servers = await Promise.all(keys.map(async key => (await request(`/api/operations/servers/${encodeURIComponent(key)}`)).server));
+        const disconnected = servers.filter(server => String(server.arcStatus).toLowerCase() !== 'connected');
+        if (disconnected.length) {
+          throw new Error(`No servers were added because these servers are no longer connected: ${disconnected.map(server => server.name).join(', ')}.`);
+        }
+        for (const server of servers) {
+          state.workloadSelected.set(server.key, {
+            key: server.key, name: server.name, resourceGroup: server.resourceGroup,
+            location: server.location, osType: server.osType
+          });
+        }
+        state.workloadChecked.clear();
+        byId('workloadServerResults').querySelectorAll('input').forEach(input => {
+          input.checked = false;
+          input.disabled = state.workloadSelected.has(input.value);
+        });
+        byId('workloadServerPicker').open = false;
+        updateWorkloadPickerSummary();
+        renderWorkloadSelection();
+      } catch (error) {
+        setError('workloadError', error);
+      } finally {
+        state.workloadBusy = false;
+        updateControls();
+      }
+    }
+
+    function renderWorkloadStatus(result) {
+      const sessionChanged = state.workload?.sessionId !== result.sessionId;
+      state.workload = result;
+      const labels = {
+        active: 'Workload monitoring active',
+        completed: 'Workload baseline complete',
+        stopped: 'Workload monitoring stopped',
+        none: 'No workload session'
+      };
+      const badge = byId('workloadStatus');
+      badge.textContent = labels[result.state] || 'Workload monitoring unavailable';
+      badge.className = getMonitoringBadgeClass(result);
+      if (sessionChanged) {
+        state.workloadSelected.clear();
+        resetWorkloadServerPicker();
+      }
+      if (result.exists && sessionChanged) {
+        for (const server of result.servers || []) {
+          state.workloadSelected.set(server.key, server);
+        }
+        renderWorkloadSelection();
+      } else if (!result.exists && sessionChanged) {
+        renderWorkloadSelection();
+      }
+      if (result.lastError) setError('workloadError', new Error(result.lastError));
+      updateControls();
+    }
+
+    function getLatestWorkloadServers() {
+      return state.workloadDetail?.observations?.at(-1)?.servers || [];
+    }
+
+    function addWorkloadKpi(label, value, detail = '', tone = '', trend = null) {
+      const card = document.createElement('div');
+      card.className = 'monitor-kpi';
+      const name = document.createElement('span');
+      name.textContent = label;
+      const number = document.createElement('strong');
+      number.textContent = value;
+      if (tone) number.className = tone;
+      const small = document.createElement('small');
+      small.append(document.createTextNode(detail));
+      if (trend) {
+        const change = getMetricDelta(trend.current, trend.previous);
+        const delta = document.createElement('span');
+        delta.className = `metric-delta ${change.tone}`;
+        delta.textContent = change.text;
+        if (change.title) delta.title = change.title;
+        small.append(delta);
+      }
+      card.append(name, number, small);
+      byId('workloadKpis').append(card);
+    }
+
+    function addWorkloadServerFact(label, value) {
+      const fact = document.createElement('div');
+      fact.className = 'workload-server-fact';
+      const name = document.createElement('span');
+      name.textContent = label;
+      const detail = document.createElement('strong');
+      detail.textContent = value ?? 'N/A';
+      fact.append(name, detail);
+      byId('workloadServerDetailFacts').append(fact);
+    }
+
+    function createWorkloadServerCell(row, server) {
+      const cell = document.createElement('td');
+      const button = document.createElement('button');
+      button.className = 'server-detail-action';
+      button.type = 'button';
+      button.textContent = `${server.name} | ${server.resourceGroup}`;
+      button.setAttribute('aria-label', `View operational details for ${server.name}`);
+      button.addEventListener('click', () => loadWorkloadServerDetail(server.key));
+      cell.append(button);
+      row.append(cell);
+    }
+
+    async function loadWorkloadServerDetail(key, scroll = true) {
+      clearError('workloadError');
+      try {
+        const result = await request(`/api/operations/servers/${encodeURIComponent(key)}`);
+        const server = result.server;
+        state.workloadSelectedServerKey = key;
+        byId('workloadServerDetailTitle').textContent = server.name;
+        byId('workloadServerDetailSubtitle').textContent = `${server.resourceGroup || 'Unknown resource group'} | ${server.location || 'Unknown location'} | Snapshot ${new Date(result.generatedAt).toLocaleString()}`;
+        byId('workloadServerDetailKpis').replaceChildren();
+        const addDetailKpi = (label, value, detail) => {
+          const card = document.createElement('div');
+          card.className = 'monitor-kpi';
+          const name = document.createElement('span');
+          name.textContent = label;
+          const number = document.createElement('strong');
+          number.textContent = value;
+          const small = document.createElement('small');
+          small.textContent = detail;
+          card.append(name, number, small);
+          byId('workloadServerDetailKpis').append(card);
+        };
+        addDetailKpi('CPU', formatMetricValue(server.cpuPercent, 'percent'), '30-minute average');
+        addDetailKpi('Memory', formatMetricValue(server.memoryPercent, 'percent'), '30-minute average');
+        addDetailKpi('Disk used', Number.isFinite(Number(server.diskFreePercent)) ? formatMetricValue(100 - Number(server.diskFreePercent), 'percent') : 'N/A', 'Lowest-free volume');
+        addDetailKpi('Disk I/O', formatMetricValue(server.diskIops, 'operationsPerSecond'), formatMetricValue(server.diskBytesPerSec, 'bytesPerSecond'));
+        addDetailKpi('Network', formatMetricValue(server.networkBytesPerSec, 'bytesPerSecond'), '30-minute average');
+
+        byId('workloadServerDetailFacts').replaceChildren();
+        addWorkloadServerFact('Health', server.health || 'Unknown');
+        addWorkloadServerFact('Arc status', server.arcStatus || 'Unknown');
+        addWorkloadServerFact('Platform', server.platform || 'Unknown');
+        addWorkloadServerFact('OS image', server.osSku || server.osName || 'Unknown');
+        addWorkloadServerFact('OS version / build', server.osVersion || 'Unknown');
+        addWorkloadServerFact('Arc agent version', server.agentVersion || 'Unknown');
+        addWorkloadServerFact('Resource group', server.resourceGroup || 'Unknown');
+        addWorkloadServerFact('Azure location', server.location || 'Unknown');
+        addWorkloadServerFact('Last heartbeat', server.lastHeartbeat ? new Date(server.lastHeartbeat).toLocaleString() : 'No telemetry');
+        addWorkloadServerFact('Active alerts', formatNumber(server.activeAlerts, 0));
+        addWorkloadServerFact('Pending updates', formatNumber(server.pendingUpdates, 0));
+        addWorkloadServerFact('Security / critical updates', `${formatNumber(server.securityUpdates, 0)} security / ${formatNumber(server.criticalUpdates, 0)} critical`);
+        addWorkloadServerFact('Reboot pending', server.rebootPending ? 'Yes' : 'No');
+        addWorkloadServerFact('Disk read operations', formatMetricValue(server.diskReadIops, 'operationsPerSecond'));
+        addWorkloadServerFact('Disk write operations', formatMetricValue(server.diskWriteIops, 'operationsPerSecond'));
+        addWorkloadServerFact('Disk read throughput', formatMetricValue(server.diskReadBytesPerSec, 'bytesPerSecond'));
+        addWorkloadServerFact('Disk write throughput', formatMetricValue(server.diskWriteBytesPerSec, 'bytesPerSecond'));
+        addWorkloadServerFact('Average disk read latency', formatMetricValue(server.diskReadLatencyMs, 'milliseconds'));
+        addWorkloadServerFact('Average disk write latency', formatMetricValue(server.diskWriteLatencyMs, 'milliseconds'));
+        addWorkloadServerFact('Current disk queue length', formatMetricValue(server.diskQueueLength, 'count'));
+        addWorkloadServerFact('Network throughput', formatMetricValue(server.networkBytesPerSec, 'bytesPerSecond'));
+        addWorkloadServerFact('Lifecycle', server.isWindowsServer ? server.lifecycleState || 'Review required' : 'Not applicable');
+        byId('workloadServerDetail').classList.remove('hidden');
+        byId('closeWorkloadServerDetail').setAttribute('aria-expanded', 'true');
+        if (scroll) byId('workloadServerDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (error) {
+        if (scroll) setError('workloadError', error);
+      }
+    }
+
+    function closeWorkloadServerDetail() {
+      state.workloadSelectedServerKey = null;
+      byId('workloadServerDetail').classList.add('hidden');
+      byId('closeWorkloadServerDetail').setAttribute('aria-expanded', 'false');
+    }
+
+    function renderWorkloadTimeline() {
+      const observations = [...(state.workloadDetail?.observations || [])].reverse();
+      const pageCount = Math.max(1, Math.ceil(observations.length / 10));
+      state.workloadPage = Math.min(state.workloadPage, pageCount - 1);
+      const rows = observations.slice(state.workloadPage * 10, state.workloadPage * 10 + 10);
+      byId('workloadTimelineRows').replaceChildren();
+      if (!rows.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 7;
+        cell.textContent = 'No workload observations are available.';
+        row.append(cell);
+        byId('workloadTimelineRows').append(row);
+      } else {
+        for (const observation of rows) {
+          const servers = observation.servers || [];
+          const unhealthy = servers.filter(server => ['critical', 'down', 'warning'].includes(server.health)).length;
+          const disconnected = servers.filter(server => server.arcStatus !== 'Connected').length;
+          const alerting = servers.filter(server => Number(server.activeAlerts) > 0).length;
+          const updating = servers.filter(server => Number(server.pendingUpdates) > 0).length;
+          const reboot = servers.filter(server => server.rebootPending).length;
+          const row = document.createElement('tr');
+          createCell(row, new Date(observation.time).toLocaleString());
+          createCell(row, String(servers.length));
+          createCell(row, String(unhealthy), unhealthy ? 'severity-warning' : '');
+          createCell(row, String(disconnected), disconnected ? 'severity-critical' : '');
+          createCell(row, String(alerting), alerting ? 'severity-warning' : '');
+          createCell(row, String(updating), updating ? 'severity-warning' : '');
+          createCell(row, String(reboot), reboot ? 'severity-warning' : '');
+          byId('workloadTimelineRows').append(row);
+        }
+      }
+      updatePagination('workload', state.workloadPage, observations.length);
+    }
+
+    function renderWorkloadDetail(detail) {
+      const sessionChanged = state.workloadDetail?.status?.sessionId !== detail?.status?.sessionId;
+      state.workloadDetail = detail;
+      if (sessionChanged) state.workloadPage = 0;
+      const exists = Boolean(detail?.status?.exists);
+      byId('workloadVisualEmpty').classList.toggle('hidden', exists);
+      byId('workloadVisualContent').classList.toggle('hidden', !exists);
+      byId('workloadLiveDot').classList.toggle('active', detail?.status?.state === 'active');
+      if (!exists) {
+        closeWorkloadServerDetail();
+        return;
+      }
+
+      const status = detail.status;
+      const latest = getLatestWorkloadServers();
+      const observations = state.workloadDetail?.observations || [];
+      const latestObservation = observations.at(-1) || {};
+      const previousServers = new Map((observations.at(-2)?.servers || []).map(server => [server.key, server]));
+      const previousLatest = observations.at(-2)?.servers || [];
+      const alerting = latest.filter(server => Number(server.activeAlerts) > 0).length;
+      const updating = latest.filter(server => Number(server.pendingUpdates) > 0).length;
+      const reboot = latest.filter(server => server.rebootPending).length;
+      const logicalCpuCores = latest.reduce((total, server) => {
+        const cores = Number(server.logicalCpuCores ?? server.cpuCores);
+        return total + (Number.isFinite(cores) ? cores : 0);
+      }, 0);
+      const totalMemoryBytes = sumAvailableMetric(latest, 'totalMemoryBytes');
+      const totalStorageBytes = sumAvailableMetric(latest, 'totalStorageBytes');
+      const storageUsedPercent = workloadStorageUsedPercent(latest);
+      const cpuUsage = weightedAverageMetric(latest, 'cpuPercent', ['logicalCpuCores', 'cpuCores']);
+      const previousCpuUsage = weightedAverageMetric(previousLatest, 'cpuPercent', ['logicalCpuCores', 'cpuCores']);
+      const memoryUsage = weightedAverageMetric(latest, 'memoryPercent', ['totalMemoryBytes']);
+      const previousMemoryUsage = weightedAverageMetric(previousLatest, 'memoryPercent', ['totalMemoryBytes']);
+      const diskIops = sumAvailableMetric(latest, 'diskIops');
+      const previousDiskIops = sumAvailableMetric(previousLatest, 'diskIops');
+      const networkBytesPerSec = sumAvailableMetric(latest, 'networkBytesPerSec');
+      const previousNetworkBytesPerSec = sumAvailableMetric(previousLatest, 'networkBytesPerSec');
+      byId('workloadWindow').textContent = `${status.windowMinutes}-minute workload baseline | ${latest.length} servers`;
+      byId('workloadUpdated').textContent = status.lastCollectedAt
+        ? `Updated ${new Date(status.lastCollectedAt).toLocaleTimeString()} | refreshes every minute`
+        : 'Initial collection pending | refreshes every minute';
+
+      byId('workloadKpis').replaceChildren();
+      addWorkloadKpi('Servers', String(latest.length), 'Selected workload');
+      addWorkloadKpi(
+        'CPU total', logicalCpuCores ? formatNumber(logicalCpuCores, 0) : 'N/A',
+        `Usage ${formatMetricValue(cpuUsage, 'percent')}`, '', { current: cpuUsage, previous: previousCpuUsage }
+      );
+      addWorkloadKpi(
+        'Total memory', formatCapacity(totalMemoryBytes),
+        `Usage ${formatMetricValue(memoryUsage, 'percent')}`, '', { current: memoryUsage, previous: previousMemoryUsage }
+      );
+      addWorkloadKpi(
+        'Total storage', formatCapacity(totalStorageBytes),
+        `Estimated used ${formatMetricValue(storageUsedPercent, 'percent')}`
+      );
+      addWorkloadKpi(
+        'Disk I/O', formatMetricValue(diskIops, 'operationsPerSecond'),
+        `Throughput ${formatMetricValue(sumAvailableMetric(latest, 'diskBytesPerSec'), 'bytesPerSecond')}`, '',
+        { current: diskIops, previous: previousDiskIops }
+      );
+      addWorkloadKpi(
+        'Network', formatMetricValue(networkBytesPerSec, 'bytesPerSecond'),
+        'Current workload total', '', { current: networkBytesPerSec, previous: previousNetworkBytesPerSec }
+      );
+      addWorkloadKpi('With alerts', String(alerting), 'One or more active alerts', alerting ? 'warning' : '');
+      addWorkloadKpi('With updates', String(updating), 'One or more pending updates', updating ? 'warning' : '');
+      addWorkloadKpi('Reboot pending', String(reboot), 'Server reports pending reboot', reboot ? 'warning' : '');
+
+      byId('workloadComparisonRows').replaceChildren();
+      for (const server of latest) {
+        const previous = previousServers.get(server.key) || {};
+        const row = document.createElement('tr');
+        createWorkloadServerCell(row, server);
+        createMetricDeltaCell(row, server.cpuPercent, 'percent', previous.cpuPercent);
+        createMetricDeltaCell(row, server.memoryPercent, 'percent', previous.memoryPercent);
+        const diskFree = server.diskFreePercent === null || server.diskFreePercent === undefined || server.diskFreePercent === ''
+          ? null : Number(server.diskFreePercent);
+        createCell(row, formatMetricValue(server.diskFreePercent, 'percent'), Number.isFinite(diskFree) && diskFree < 15 ? 'severity-critical' : Number.isFinite(diskFree) && diskFree < 25 ? 'severity-warning' : '');
+        createMetricDeltaCell(
+          row, server.diskIops, 'operationsPerSecond', previous.diskIops,
+          `${formatMetricValue(server.diskIops, 'operationsPerSecond')} | ${formatMetricValue(server.diskBytesPerSec, 'bytesPerSecond')}`
+        );
+        createMetricDeltaCell(row, server.networkBytesPerSec, 'bytesPerSecond', previous.networkBytesPerSec);
+        createCell(row, `${server.activeAlerts} active | ${server.criticalAlerts} critical`, server.criticalAlerts > 0 ? 'severity-critical' : server.warningAlerts > 0 ? 'severity-warning' : '');
+        createCell(row, `${server.pendingUpdates} pending | ${server.securityUpdates} security`, server.criticalUpdates > 0 ? 'severity-critical' : server.pendingUpdates > 0 ? 'severity-warning' : '');
+        createCell(row, server.rebootPending ? 'Pending' : 'No', server.rebootPending ? 'severity-warning' : '');
+        createCell(
+          row,
+          server.lastHeartbeat ? new Date(server.lastHeartbeat).toLocaleString() : 'No heartbeat',
+          heartbeatState(server, latestObservation.time) === 'good' ? 'heartbeat-good' : 'heartbeat-bad'
+        );
+        byId('workloadComparisonRows').append(row);
+      }
+      renderWorkloadTimeline();
+      if (state.workloadSelectedServerKey && !latest.some(server => server.key === state.workloadSelectedServerKey)) {
+        closeWorkloadServerDetail();
+      }
+    }
+
+    async function loadWorkloadStatus() {
+      try {
+        renderWorkloadStatus(await request('/api/workload-monitoring/session'));
+      } catch (error) {
+        setError('workloadError', error);
+      }
+    }
+
+    async function loadWorkloadDetail() {
+      try {
+        renderWorkloadDetail(await request('/api/workload-monitoring/session/detail'));
+        if (state.workloadSelectedServerKey) {
+          await loadWorkloadServerDetail(state.workloadSelectedServerKey, false);
+        }
+      } catch (error) {
+        setError('workloadError', error);
+      }
+    }
+
+    async function startWorkloadMonitoring() {
+      if (state.workloadSelected.size < 1 || state.workloadSelected.size > 10) return;
+      if (state.workload?.exists && !confirm('Replace the existing encrypted workload snapshot with a new session?')) return;
+      clearError('workloadError');
+      state.workloadBusy = true;
+      updateControls();
+      try {
+        const result = await request('/api/workload-monitoring/session', {
+          method: 'POST',
+          body: JSON.stringify({
+            serverKeys: [...state.workloadSelected.keys()],
+            durationMinutes: Number(byId('workloadDuration').value)
+          })
+        });
+        renderWorkloadStatus(result);
+        await loadWorkloadDetail();
+      } catch (error) {
+        setError('workloadError', error);
+      } finally {
+        state.workloadBusy = false;
+        updateControls();
+      }
+    }
+
+    async function collectWorkloadNow() {
+      state.workloadBusy = true;
+      clearError('workloadError');
+      updateControls();
+      try {
+        const requested = await request('/api/workload-monitoring/session/refresh', { method: 'POST', body: '{}' });
+        renderWorkloadStatus(requested);
+        const requestedAt = new Date(requested.collectionRequestedAt).getTime();
+        const deadline = Date.now() + 90000;
+        let detail;
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          detail = await request('/api/workload-monitoring/session/detail');
+        } while (
+          detail.status?.state === 'active' &&
+          (!detail.status.lastCollectedAt || new Date(detail.status.lastCollectedAt).getTime() < requestedAt) &&
+          Date.now() < deadline
+        );
+        if (!detail.status?.lastCollectedAt || new Date(detail.status.lastCollectedAt).getTime() < requestedAt) {
+          throw new Error('Workload collection was requested but did not finish within 90 seconds.');
+        }
+        renderWorkloadStatus(detail.status);
+        renderWorkloadDetail(detail);
+      } catch (error) {
+        setError('workloadError', error);
+      } finally {
+        state.workloadBusy = false;
+        updateControls();
+      }
+    }
+
+    async function stopWorkloadMonitoring() {
+      if (!confirm('Stop collecting workload observations and keep the encrypted snapshot available to Arc AI?')) return;
+      state.workloadBusy = true;
+      updateControls();
+      try {
+        renderWorkloadStatus(await request('/api/workload-monitoring/session/stop', { method: 'POST', body: '{}' }));
+        await loadWorkloadDetail();
+      } catch (error) {
+        setError('workloadError', error);
+      } finally {
+        state.workloadBusy = false;
+        updateControls();
+      }
+    }
+
+    async function deleteWorkloadMonitoring() {
+      if (!confirm('Permanently delete the encrypted workload monitoring snapshot?')) return;
+      state.workloadBusy = true;
+      updateControls();
+      try {
+        renderWorkloadStatus(await request('/api/workload-monitoring/session', { method: 'DELETE' }));
+        state.workloadSelected.clear();
+        renderWorkloadSelection();
+        await loadWorkloadDetail();
+      } catch (error) {
+        setError('workloadError', error);
+      } finally {
+        state.workloadBusy = false;
+        updateControls();
+      }
+    }
+
+    async function initializeWorkloadMonitoring() {
+      await loadWorkloadStatus();
+      await loadWorkloadDetail();
+      renderWorkloadSelection();
+      clearInterval(state.workloadTimer);
+      state.workloadTimer = setInterval(loadWorkloadStatus, 10000);
+      clearInterval(state.workloadDetailTimer);
+      state.workloadDetailTimer = setInterval(loadWorkloadDetail, 60000);
+      updateControls();
+    }
+
+    async function loadMonitoringStatus() {
+      try {
+        renderMonitoringStatus(await request('/api/monitoring/session'));
+      } catch (error) {
+        setError('monitoringError', error);
+      }
+    }
+
+    async function startMonitoring() {
+      const serverKey = byId('monitorServer').value;
+      if (!serverKey) return;
+      if (state.monitoring?.exists && !confirm('Replace the existing encrypted monitoring snapshot with a new session?')) return;
+      clearError('monitoringError');
+      state.monitoringBusy = true;
+      updateControls();
+      try {
+        const result = await request('/api/monitoring/session', {
+          method: 'POST',
+          body: JSON.stringify({
+            serverKey,
+            durationMinutes: Number(byId('monitorDuration').value)
+          })
+        });
+        renderMonitoringStatus(result);
+        await loadMonitoringDetail();
+      } catch (error) {
+        setError('monitoringError', error);
+      } finally {
+        state.monitoringBusy = false;
+        updateControls();
+      }
+    }
+
+    async function collectMonitoringNow() {
+      state.monitoringBusy = true;
+      clearError('monitoringError');
+      updateControls();
+      try {
+        const requested = await request('/api/monitoring/session/refresh', { method: 'POST', body: '{}' });
+        renderMonitoringStatus(requested);
+        const requestedAt = new Date(requested.collectionRequestedAt).getTime();
+        const deadline = Date.now() + 90000;
+        let detail;
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          detail = await request('/api/monitoring/session/detail');
+        } while (
+          detail.status?.state === 'active' &&
+          (!detail.status.lastCollectedAt || new Date(detail.status.lastCollectedAt).getTime() < requestedAt) &&
+          Date.now() < deadline
+        );
+        if (!detail.status?.lastCollectedAt || new Date(detail.status.lastCollectedAt).getTime() < requestedAt) {
+          throw new Error('Collection was requested but did not finish within 90 seconds.');
+        }
+        renderMonitoringStatus(detail.status);
+        renderMonitoringDetail(detail);
+      } catch (error) {
+        setError('monitoringError', error);
+      } finally {
+        state.monitoringBusy = false;
+        updateControls();
+      }
+    }
+
+    async function stopMonitoring() {
+      if (!confirm('Stop collecting new data and keep the encrypted snapshot available to Arc AI?')) return;
+      state.monitoringBusy = true;
+      updateControls();
+      try {
+        renderMonitoringStatus(await request('/api/monitoring/session/stop', { method: 'POST', body: '{}' }));
+        await loadMonitoringDetail();
+      } catch (error) {
+        setError('monitoringError', error);
+      } finally {
+        state.monitoringBusy = false;
+        updateControls();
+      }
+    }
+
+    async function deleteMonitoring() {
+      if (!confirm('Permanently delete the encrypted monitoring snapshot?')) return;
+      state.monitoringBusy = true;
+      updateControls();
+      try {
+        renderMonitoringStatus(await request('/api/monitoring/session', { method: 'DELETE' }));
+        await loadMonitoringDetail();
+      } catch (error) {
+        setError('monitoringError', error);
+      } finally {
+        state.monitoringBusy = false;
+        updateControls();
+      }
+    }
+
+    async function initializeMonitoring() {
+      await loadMonitoringStatus();
+      await loadMonitoringDetail();
+      const serverKey = new URLSearchParams(location.search).get('server');
+      if (state.monitoring?.state !== 'active' && serverKey && /^[a-f0-9]{16}$/.test(serverKey)) {
+        try {
+          const result = await request(`/api/operations/servers/${serverKey}`);
+          ensureMonitoringServerOption(result.server);
+        } catch (error) {
+          setError('monitoringError', error);
+        }
+      }
+      clearInterval(state.monitoringTimer);
+      state.monitoringTimer = setInterval(loadMonitoringStatus, 10000);
+      clearInterval(state.monitoringDetailTimer);
+      state.monitoringDetailTimer = setInterval(loadMonitoringDetail, 60000);
+      updateControls();
+    }
+
+    async function logout() {
+      if (!confirm('Log out of Azure, clear cached dashboard data, and remove the local dashboard configuration?')) return;
+      const button = byId('logout');
+      button.disabled = true;
+      try {
+        await request('/api/logout', { method: 'POST', body: '{}' });
+        clearInterval(state.refreshTimer);
+        clearInterval(state.monitoringTimer);
+        clearInterval(state.monitoringDetailTimer);
+        clearInterval(state.workloadTimer);
+        clearInterval(state.workloadDetailTimer);
+        clearTimeout(state.loginTimer);
+        document.body.innerHTML = '<main style="max-width:720px;margin:80px auto;padding:30px;border:1px solid #293a47;border-radius:8px;background:#101a23"><h1>Signed out</h1><p style="color:#96aab7">The Azure session was cleared and the Azure Arc Observability Dashboard server has stopped. You can close this browser tab.</p></main>';
+      } catch (error) {
+        setError('configurationError', error);
+        button.disabled = false;
+      }
+    }
+
+    async function loadAuthenticationStatus(tenantId = byId('foundryTenantId').value.trim()) {
+      try {
+        const query = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
+        const result = await request(`/api/ai/login-status${query}`);
+        applyAuthenticationStatus(result);
+        if (result.state === 'running') scheduleLoginPoll();
+      } catch (error) {
+        state.authenticated = false;
+        setError('configurationError', error);
+        updateControls();
+      }
+    }
+
+    function scheduleLoginPoll() {
+      clearTimeout(state.loginTimer);
+      state.loginTimer = setTimeout(async () => {
+        try {
+          const result = await request(`/api/ai/login-status?tenantId=${encodeURIComponent(byId('foundryTenantId').value.trim())}`);
+          applyAuthenticationStatus(result);
+          if (result.state === 'running') scheduleLoginPoll();
+        } catch (error) {
+          setError('configurationError', error);
+        }
+      }, 1500);
+    }
+
+    async function startFoundryLogin() {
+      clearError('configurationError');
+      const tenantId = byId('foundryTenantId').value.trim();
+      if (!tenantId) {
+        setError('configurationError', new Error('Enter the Foundry tenant ID before signing in.'));
+        return;
+      }
+      state.authenticated = false;
+      state.busy = true;
+      updateControls();
+      try {
+        const result = await request('/api/ai/login', {
+          method: 'POST',
+          body: JSON.stringify({ tenantId })
+        });
+        applyAuthenticationStatus(result);
+        if (result.state === 'running') scheduleLoginPoll();
+      } catch (error) {
+        setError('configurationError', error);
+      } finally {
+        state.busy = false;
+        updateControls();
+      }
+    }
+
+    async function saveConfiguration() {
+      clearError('configurationError');
+      state.busy = true;
+      updateControls();
+      try {
+        const status = await request('/api/ai/configure', {
+          method: 'POST',
+          body: JSON.stringify({
+            tenantId: byId('foundryTenantId').value,
+            endpoint: byId('endpoint').value,
+            model: byId('model').value
+          })
+        });
+        applyStatus({ ...status, subscriptionId: '', resourceGroups: [] });
+        await loadStatus();
+      } catch (error) {
+        setError('configurationError', error);
+      } finally {
+        state.busy = false;
+        updateControls();
+      }
+    }
+
+    async function sendQuestion() {
+      const question = byId('prompt').value.trim();
+      const tenantMatchesConfiguration = byId('foundryTenantId').value.trim().toLowerCase() === state.configuredTenantId;
+      if (!question || !state.configured || !tenantMatchesConfiguration || !state.authenticated || state.busy) return;
+      clearError('chatError');
+      addMessage('user', question);
+      const requestMessages = trimConversation([...state.messages, { role: 'user', content: question }]);
+      byId('prompt').value = '';
+      state.busy = true;
+      byId('requestStatus').textContent = 'Analyzing bounded dashboard snapshots...';
+      updateControls();
+      try {
+        const result = await request('/api/ai/chat', {
+          method: 'POST',
+          body: JSON.stringify({ messages: requestMessages })
+        });
+        const tools = (result.toolsUsed || []).join(', ');
+        const metadata = `${result.model}${tools ? ` | Tools: ${tools}` : ''}`;
+        addMessage('assistant', result.answer, metadata);
+        if (result.answer.length <= 8000) {
+          state.messages = trimConversation([...requestMessages, { role: 'assistant', content: result.answer }]);
+        } else {
+          state.messages = trimConversation(requestMessages.slice(0, -1));
+        }
+        byId('requestStatus').textContent = 'Conversation is kept only in this browser tab.';
+      } catch (error) {
+        setError('chatError', error);
+        byId('requestStatus').textContent = 'The request did not complete.';
+      } finally {
+        state.busy = false;
+        updateControls();
+        byId('prompt').focus();
+      }
+    }
+
+    function configureVisibilityToggle(inputId, toggleId, label) {
+      byId(toggleId).addEventListener('click', () => {
+        const input = byId(inputId);
+        const revealed = input.type === 'password';
+        input.type = revealed ? 'text' : 'password';
+        const action = `${revealed ? 'Hide' : 'Show'} ${label}`;
+        byId(toggleId).classList.toggle('revealed', revealed);
+        byId(toggleId).setAttribute('aria-label', action);
+        byId(toggleId).title = action;
+      });
+    }
+
+    byId('saveConfiguration').addEventListener('click', saveConfiguration);
+    byId('foundryLogin').addEventListener('click', startFoundryLogin);
+    configureVisibilityToggle('foundryTenantId', 'toggleFoundryTenantVisibility', 'Foundry tenant ID');
+    configureVisibilityToggle('endpoint', 'toggleEndpointVisibility', 'Foundry resource endpoint');
+    configureVisibilityToggle('model', 'toggleModelVisibility', 'model deployment name');
+    byId('refresh').addEventListener('click', refresh);
+    byId('logout').addEventListener('click', logout);
+    byId('refreshInterval').addEventListener('change', event => {
+      localStorage.setItem('arcDashboardRefreshInterval', event.target.value);
+      configureRefreshInterval();
+    });
+    byId('findMonitorServers').addEventListener('click', findMonitoringServers);
+    byId('monitorServerSearch').addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        findMonitoringServers();
+      }
+    });
+    byId('monitorServer').addEventListener('change', updateControls);
+    byId('startMonitoring').addEventListener('click', startMonitoring);
+    byId('refreshMonitoring').addEventListener('click', collectMonitoringNow);
+    byId('stopMonitoring').addEventListener('click', stopMonitoring);
+    byId('deleteMonitoring').addEventListener('click', deleteMonitoring);
+    byId('toggleSingleServerPanel').addEventListener('click', () => {
+      state.singlePanelCollapsed = !state.singlePanelCollapsed;
+      setPanelCollapsed('singleServerPanelBody', 'toggleSingleServerPanel', state.singlePanelCollapsed);
+    });
+    byId('toggleLiveMonitorPanel').addEventListener('click', () => {
+      state.livePanelCollapsed = !state.livePanelCollapsed;
+      setPanelCollapsed('liveMonitorPanelBody', 'toggleLiveMonitorPanel', state.livePanelCollapsed);
+    });
+    byId('toggleWorkloadPanel').addEventListener('click', () => {
+      state.workloadPanelCollapsed = !state.workloadPanelCollapsed;
+      setPanelCollapsed('workloadPanelBody', 'toggleWorkloadPanel', state.workloadPanelCollapsed);
+    });
+    byId('toggleSelectedServers').addEventListener('click', () => {
+      setSelectedServersCollapsed(!state.selectedServersCollapsed);
+    });
+    byId('toggleTimeline').addEventListener('click', () => setTimelineCollapsed(!state.timelineCollapsed));
+    byId('toggleEvents').addEventListener('click', () => setEventsCollapsed(!state.eventsCollapsed));
+    byId('closeWorkloadServerDetail').addEventListener('click', closeWorkloadServerDetail);
+    byId('workloadServerPicker').addEventListener('toggle', event => {
+      if (event.currentTarget.open && event.currentTarget.getAttribute('aria-disabled') === 'true') {
+        event.currentTarget.open = false;
+      }
+    });
+    byId('workloadServerPicker').addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.currentTarget.open = false;
+        byId('workloadServerPickerSummary').focus();
+      }
+    });
+    document.addEventListener('click', event => {
+      const picker = byId('workloadServerPicker');
+      if (picker.open && !picker.contains(event.target)) picker.open = false;
+    });
+    byId('timelinePrevious').addEventListener('click', () => {
+      if (state.timelinePage > 0) {
+        state.timelinePage--;
+        renderMonitoringTimeline();
+      }
+    });
+    byId('timelineNext').addEventListener('click', () => {
+      state.timelinePage++;
+      renderMonitoringTimeline();
+    });
+    byId('eventsPrevious').addEventListener('click', () => {
+      if (state.eventsPage > 0) {
+        state.eventsPage--;
+        renderMonitoringEvents();
+      }
+    });
+    byId('eventsNext').addEventListener('click', () => {
+      state.eventsPage++;
+      renderMonitoringEvents();
+    });
+    byId('findWorkloadServers').addEventListener('click', findWorkloadServers);
+    byId('workloadServerSearch').addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        findWorkloadServers();
+      }
+    });
+    byId('workloadServerResults').addEventListener('change', updateControls);
+    byId('addWorkloadServer').addEventListener('click', addWorkloadServer);
+    byId('startWorkloadMonitoring').addEventListener('click', startWorkloadMonitoring);
+    byId('refreshWorkloadMonitoring').addEventListener('click', collectWorkloadNow);
+    byId('stopWorkloadMonitoring').addEventListener('click', stopWorkloadMonitoring);
+    byId('deleteWorkloadMonitoring').addEventListener('click', deleteWorkloadMonitoring);
+    byId('workloadPrevious').addEventListener('click', () => {
+      if (state.workloadPage > 0) {
+        state.workloadPage--;
+        renderWorkloadTimeline();
+      }
+    });
+    byId('workloadNext').addEventListener('click', () => {
+      state.workloadPage++;
+      renderWorkloadTimeline();
+    });
+    byId('copyDeviceCode').addEventListener('click', () => navigator.clipboard.writeText(byId('deviceCode').textContent));
+    byId('foundryTenantId').addEventListener('input', () => {
+      clearError('configurationError');
+      state.authenticated = false;
+      applyAuthenticationStatus({ state: 'idle', authenticated: false, tenantId: byId('foundryTenantId').value.trim() });
+    });
+    byId('endpoint').addEventListener('input', updateControls);
+    byId('model').addEventListener('input', updateControls);
+    byId('send').addEventListener('click', sendQuestion);
+    byId('prompt').addEventListener('input', updateControls);
+    byId('prompt').addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendQuestion();
+      }
+    });
+    document.querySelectorAll('[data-question]').forEach(button => {
+      button.addEventListener('click', () => {
+        byId('prompt').value = button.dataset.question;
+        updateControls();
+        byId('prompt').focus();
+      });
+    });
+
+    configureRefreshInterval();
+    refresh();
+    initializeMonitoring();
+    initializeWorkloadMonitoring();
+  </script>
+</body>
+</html>

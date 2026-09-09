@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arc-dashboard.fullname" . }}
+  labels:
+    {{- include "arc-dashboard.labels" . | nindent 4 }}
+data:
+  ARC_DASHBOARD_BIND_ADDRESS: "127.0.0.1"
+  ARC_DASHBOARD_PORT: {{ .Values.dashboard.port | quote }}
+  ARC_DASHBOARD_DATA_ROOT: "/var/lib/arc-dashboard"
+  ARC_DASHBOARD_ACCESS_MODE: "TrustedProxy"
+  ARC_DASHBOARD_AZURE_AUTH_MODE: "WorkloadIdentity"
+  ARC_DASHBOARD_ADMIN_USERS: {{ join "," .Values.dashboard.administratorUsers | quote }}
+  AZURE_CONFIG_DIR: "/var/lib/arc-dashboard/.azure"
+  AZURE_CLIENT_ID: {{ .Values.workloadIdentity.clientId | quote }}
+  AZURE_TENANT_ID: {{ .Values.workloadIdentity.tenantId | quote }}
+  AZURE_SUBSCRIPTION_ID: {{ .Values.workloadIdentity.subscriptionId | quote }}
+  AZURE_FEDERATED_TOKEN_FILE: "/var/run/secrets/azure/tokens/azure-identity-token"
+  POWERSHELL_TELEMETRY_OPTOUT: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"

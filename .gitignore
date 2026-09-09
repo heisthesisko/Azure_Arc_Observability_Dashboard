@@ -1,0 +1,38 @@
+# Dashboard runtime configuration and authentication state
+**/dashboard.config.dat
+**/dashboard.config.json
+**/.azure/
+**/.azure-foundry/
+**/.monitoring/
+**/.secrets/
+**/.runtime/
+**/ai-evaluation-results/
+
+# Local container state
+**/.env
+**/data/
+**/azure-profile/
+
+# Environment-specific Kubernetes and Helm output
+**/values-production.yaml
+**/values.local.yaml
+**/*.production.yaml
+**/*.rendered.yaml
+**/rendered.yaml
+
+# Runtime and diagnostic output
+**/*.log
+**/*.tmp
+**/*.bak
+**/crashdumps/
+
+# Editor and operating-system state
+**/.vs/
+**/.vscode/
+**/.idea/
+**/Thumbs.db
+**/.DS_Store
+
+# Test and coverage output
+**/TestResults/
+**/coverage/

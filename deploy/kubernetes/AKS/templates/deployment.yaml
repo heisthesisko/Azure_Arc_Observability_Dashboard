@@ -1,0 +1,233 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arc-dashboard.fullname" . }}
+  labels:
+    {{- include "arc-dashboard.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "arc-dashboard.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "arc-dashboard.selectorLabels" . | nindent 8 }}
+        azure.workload.identity/use: "true"
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        azure.workload.identity/skip-containers: "oauth2-proxy"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "arc-dashboard.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboard
+          image: {{ include "arc-dashboard.dashboardImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "arc-dashboard.fullname" . }}
+          env:
+            - name: HOME
+              value: /var/lib/arc-dashboard
+          ports:
+            - name: dashboard
+              containerPort: {{ .Values.dashboard.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/arc-dashboard
+            - name: dashboard-tmp
+              mountPath: /tmp
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+          startupProbe:
+            exec:
+              command:
+                - pwsh
+                - -NoLogo
+                - -NoProfile
+                - -Command
+                - >-
+                  $response = Invoke-WebRequest -UseBasicParsing
+                  http://127.0.0.1:{{ .Values.dashboard.port }}/health/live
+                  -TimeoutSec {{ .Values.dashboard.probes.startup.timeoutSeconds }};
+                  if ($response.StatusCode -ne 200) { exit 1 }
+            failureThreshold: {{ .Values.dashboard.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.dashboard.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.dashboard.probes.startup.timeoutSeconds }}
+          livenessProbe:
+            exec:
+              command:
+                - pwsh
+                - -NoLogo
+                - -NoProfile
+                - -Command
+                - >-
+                  $response = Invoke-WebRequest -UseBasicParsing
+                  http://127.0.0.1:{{ .Values.dashboard.port }}/health/live
+                  -TimeoutSec {{ .Values.dashboard.probes.liveness.timeoutSeconds }};
+                  if ($response.StatusCode -ne 200) { exit 1 }
+            initialDelaySeconds: {{ .Values.dashboard.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.dashboard.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.dashboard.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.dashboard.probes.liveness.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - pwsh
+                - -NoLogo
+                - -NoProfile
+                - -Command
+                - >-
+                  try {
+                    $response = Invoke-WebRequest -UseBasicParsing
+                    http://127.0.0.1:{{ .Values.dashboard.port }}/health/ready
+                    -TimeoutSec {{ .Values.dashboard.probes.readiness.timeoutSeconds }};
+                    if ($response.StatusCode -ne 200) { exit 1 }
+                  } catch { exit 1 }
+            initialDelaySeconds: {{ .Values.dashboard.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.dashboard.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.dashboard.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.dashboard.probes.readiness.failureThreshold }}
+        - name: oauth2-proxy
+          image: {{ include "arc-dashboard.proxyImage" . | quote }}
+          imagePullPolicy: {{ .Values.oauth2Proxy.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2Proxy.existingSecret }}
+                  key: {{ .Values.oauth2Proxy.secretKeys.clientId }}
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2Proxy.existingSecret }}
+                  key: {{ .Values.oauth2Proxy.secretKeys.clientSecret }}
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2Proxy.existingSecret }}
+                  key: {{ .Values.oauth2Proxy.secretKeys.cookieSecret }}
+          args:
+            - --provider=oidc
+            - --provider-display-name=Microsoft Entra ID
+            - --oidc-issuer-url=https://login.microsoftonline.com/{{ .Values.oauth2Proxy.tenantId }}/v2.0
+            - --oidc-email-claim=preferred_username
+            - --scope={{ join " " .Values.oauth2Proxy.scopes }}
+            - --redirect-url=https://{{ .Values.ingress.host }}/oauth2/callback
+            - --http-address=0.0.0.0:4180
+            - --upstream=http://127.0.0.1:{{ .Values.dashboard.port }}
+            - --email-domain=*
+            - --reverse-proxy=true
+            - --set-xauthrequest=true
+            - --pass-user-headers=true
+            - --pass-access-token=true
+            - --skip-auth-strip-headers=false
+            - --skip-auth-route=^/signed-out.html$
+            - --code-challenge-method=S256
+            - --cookie-name={{ .Values.oauth2Proxy.cookie.name }}
+            - --cookie-secure=true
+            - --cookie-httponly=true
+            - --cookie-samesite={{ .Values.oauth2Proxy.cookie.sameSite }}
+            - --cookie-expire={{ .Values.oauth2Proxy.cookie.expire }}
+            - --cookie-refresh={{ .Values.oauth2Proxy.cookie.refresh }}
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-per-request-limit=4
+            - --cookie-csrf-expire=5m
+            - --skip-provider-button=true
+            - --silence-ping-logging=true
+            {{- range .Values.oauth2Proxy.allowedGroups }}
+            - --allowed-group={{ . }}
+            {{- end }}
+            {{- range .Values.oauth2Proxy.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: proxy
+              containerPort: 4180
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.oauth2Proxy.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: proxy
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: proxy
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "arc-dashboard.pvcName" . }}
+        - name: dashboard-tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}

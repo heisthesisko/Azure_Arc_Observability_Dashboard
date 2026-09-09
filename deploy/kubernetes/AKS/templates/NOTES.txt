@@ -1,0 +1,15 @@
+Azure Arc Observability Dashboard has been installed as a singleton release.
+
+Host: https://{{ .Values.ingress.host }}
+Service: {{ include "arc-dashboard.fullname" . }} (oauth2-proxy only)
+Persistent claim: {{ include "arc-dashboard.pvcName" . }}
+
+Check rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "arc-dashboard.fullname" . }}
+
+Check both containers:
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "arc-dashboard.fullname" . }} -c dashboard --tail=100
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "arc-dashboard.fullname" . }} -c oauth2-proxy --tail=100
+
+Readiness remains false until an authorized administrator saves the dashboard scope.
+The chart retains its generated PVC on uninstall when persistence.retain=true.

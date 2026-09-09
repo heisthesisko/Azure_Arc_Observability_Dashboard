@@ -1,0 +1,39 @@
+services:
+  arc-dashboard:
+    build:
+      context: .
+    image: arc-operations-dashboard:local
+    container_name: arc-operations-dashboard
+    restart: unless-stopped
+    read_only: true
+    init: true
+    ports:
+      - "127.0.0.1:8766:8766"
+    environment:
+      ARC_DASHBOARD_DATA_ROOT: /var/lib/arc-dashboard
+      ARC_DASHBOARD_BIND_ADDRESS: 0.0.0.0
+      ARC_DASHBOARD_PORT: "8766"
+      AZURE_CONFIG_DIR: /var/lib/arc-dashboard/.azure
+    volumes:
+      - arc-dashboard-data:/var/lib/arc-dashboard
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - pwsh
+        - -NoProfile
+        - -Command
+        - "(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8766/health/live -TimeoutSec 5).StatusCode -eq 200"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  arc-dashboard-data:
+    name: arc-dashboard-data
