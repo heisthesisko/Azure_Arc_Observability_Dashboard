@@ -50,7 +50,7 @@ Architecture (enterprise scale):
 #>
 
 $ErrorActionPreference = 'Stop'
-$applicationVersion = 'v1.0.1'
+$applicationVersion = 'v1.0.2'
 
 # region Encrypted local configuration
 # Dashboard scope contains Azure identifiers rather than credentials, but it is

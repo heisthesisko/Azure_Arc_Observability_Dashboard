@@ -308,16 +308,16 @@
           </div>
         </section>
 
-        <section class="panel monitoring-config-panel">
+        <section class="panel monitoring-config-panel panel-collapsed">
           <div class="panel-header collapsible-panel-header">
             <div>
               <h2>Single-server monitoring</h2>
               <div class="meta">Build a rolling encrypted baseline from approved Azure Monitor telemetry.</div>
               <span class="status" id="monitoringStatus">No monitoring session</span>
             </div>
-            <button class="table-action" id="toggleSingleServerPanel" type="button" aria-expanded="true" aria-controls="singleServerPanelBody">Collapse</button>
+            <button class="table-action" id="toggleSingleServerPanel" type="button" aria-expanded="false" aria-controls="singleServerPanelBody">Expand</button>
           </div>
-          <div class="panel-body" id="singleServerPanelBody">
+          <div class="panel-body hidden" id="singleServerPanelBody">
             <label for="monitorServerSearch">Arc-enabled server</label>
             <div class="monitor-search">
               <input id="monitorServerSearch" type="search" maxlength="200" placeholder="Leave blank to list all connected servers">
@@ -390,7 +390,7 @@
           </div>
         </section>
 
-        <section class="panel monitor-dashboard">
+        <section class="panel monitor-dashboard panel-collapsed">
           <div class="panel-header">
             <div>
               <h2>Live monitored server detail</h2>
@@ -398,10 +398,10 @@
             </div>
             <div>
               <div class="live-label"><span class="live-dot" id="monitorLiveDot"></span><span id="monitorVisualUpdated">Waiting for a session</span></div>
-              <button class="table-action" id="toggleLiveMonitorPanel" type="button" aria-expanded="true" aria-controls="liveMonitorPanelBody">Collapse</button>
+              <button class="table-action" id="toggleLiveMonitorPanel" type="button" aria-expanded="false" aria-controls="liveMonitorPanelBody">Expand</button>
             </div>
           </div>
-          <div class="panel-body monitor-visual-body" id="liveMonitorPanelBody">
+          <div class="panel-body monitor-visual-body hidden" id="liveMonitorPanelBody">
             <div class="monitor-empty" id="monitorVisualEmpty">No monitored-server data is available.</div>
             <div class="hidden" id="monitorVisualContent">
               <div class="monitor-kpis" id="monitorKpis"></div>
@@ -409,9 +409,9 @@
               <div class="monitor-table-wrap">
                 <div class="monitor-table-title">
                   <span>Operational timeline</span>
-                  <button class="table-action" id="toggleTimeline" type="button" aria-expanded="true" aria-controls="monitorTimelineContent">Collapse</button>
+                  <button class="table-action" id="toggleTimeline" type="button" aria-expanded="false" aria-controls="monitorTimelineContent">Expand</button>
                 </div>
-                <div id="monitorTimelineContent">
+                <div class="hidden" id="monitorTimelineContent">
                   <div class="monitor-table-scroll">
                     <table class="monitor-table">
                       <thead><tr><th>Observed</th><th>Connectivity</th><th>Alerts</th><th>Updates</th><th>Reboot</th></tr></thead>
@@ -428,9 +428,9 @@
               <div class="monitor-table-wrap">
                 <div class="monitor-table-title">
                   <span>Recent collected events</span>
-                  <button class="table-action" id="toggleEvents" type="button" aria-expanded="true" aria-controls="monitorEventsContent">Collapse</button>
+                  <button class="table-action" id="toggleEvents" type="button" aria-expanded="false" aria-controls="monitorEventsContent">Expand</button>
                 </div>
-                <div id="monitorEventsContent">
+                <div class="hidden" id="monitorEventsContent">
                   <div class="monitor-table-scroll">
                     <table class="monitor-table">
                       <thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Source</th><th>Message</th></tr></thead>
@@ -450,16 +450,16 @@
         </section>
       </div>
 
-      <section class="panel workload-panel">
+      <section class="panel workload-panel panel-collapsed">
         <div class="panel-header collapsible-panel-header">
           <div>
             <h2>Workload monitoring</h2>
             <div class="meta">Collect a bounded encrypted summary baseline for up to 10 Arc-enabled servers.</div>
             <span class="status" id="workloadStatus">No workload session</span>
           </div>
-          <button class="table-action" id="toggleWorkloadPanel" type="button" aria-expanded="true" aria-controls="workloadPanelBody">Collapse</button>
+          <button class="table-action" id="toggleWorkloadPanel" type="button" aria-expanded="false" aria-controls="workloadPanelBody">Expand</button>
         </div>
-        <div class="panel-body monitor-visual-body" id="workloadPanelBody">
+        <div class="panel-body monitor-visual-body hidden" id="workloadPanelBody">
           <div class="workload-builder">
             <div>
               <label for="workloadServerSearch">Find Arc-enabled servers</label>
@@ -498,10 +498,10 @@
                 <strong>Selected servers</strong>
                 <div class="workload-status-actions">
                   <span class="meta" id="workloadSelectedCount">0 of 10 selected</span>
-                  <button class="table-action" id="toggleSelectedServers" type="button" aria-expanded="true" aria-controls="workloadSelectedPanelBody">Collapse</button>
+                  <button class="table-action" id="toggleSelectedServers" type="button" aria-expanded="false" aria-controls="workloadSelectedPanelBody">Expand</button>
                 </div>
               </div>
-              <div id="workloadSelectedPanelBody">
+              <div class="hidden" id="workloadSelectedPanelBody">
                 <div class="selected-servers" id="workloadSelectedServers">
                   <div class="meta">Search for and add between 1 and 10 servers.</div>
                 </div>
@@ -566,11 +566,11 @@
       monitoring: null, monitoringBusy: false, monitoringTimer: null, monitoringDetailTimer: null,
       monitoringDetail: null, timelinePage: 0, eventsPage: 0,
       timelineCollapsed: true, eventsCollapsed: true,
-      singlePanelCollapsed: false, livePanelCollapsed: false, workloadPanelCollapsed: false,
+      singlePanelCollapsed: true, livePanelCollapsed: true, workloadPanelCollapsed: true,
       workload: null, workloadBusy: false, workloadTimer: null, workloadDetailTimer: null,
       workloadDetail: null, workloadSelected: new Map(), workloadSearchResults: new Map(), workloadPage: 0,
       workloadChecked: new Set(), workloadSearchTotal: null, workloadSelectedServerKey: null,
-      selectedServersCollapsed: false
+      selectedServersCollapsed: true
     };
     const byId = id => document.getElementById(id);
 
@@ -985,13 +985,15 @@
       const rows = selectedSource ? matchingRows.filter(row => row.source === selectedSource) : [];
       const observationMetric = metricNames.find(name => name !== 'memoryAvailableMB');
       const observationRows = detail.observations
-        .filter(row => Number.isFinite(Number(row[observationMetric])))
+        .filter(row => row[observationMetric] !== null && row[observationMetric] !== undefined &&
+          row[observationMetric] !== '' && Number.isFinite(Number(row[observationMetric])))
         .map(row => ({
           time: row.time, metric: observationMetric, value: Number(row[observationMetric]),
           unit: metricUnit(observationMetric),
           source: 'Arc snapshot'
         }));
-      const samples = rows.length ? rows : observationRows;
+      const samples = [...(rows.length ? rows : observationRows)]
+        .sort((left, right) => new Date(left.time) - new Date(right.time));
       const container = document.createElement('div');
       container.className = 'monitor-chart';
       const heading = document.createElement('div');
@@ -1588,16 +1590,17 @@
       byId('workloadKpis').replaceChildren();
       addWorkloadKpi('Servers', String(latest.length), 'Selected workload');
       addWorkloadKpi(
-        'CPU total', logicalCpuCores ? formatNumber(logicalCpuCores, 0) : 'N/A',
-        `Usage ${formatMetricValue(cpuUsage, 'percent')}`, '', { current: cpuUsage, previous: previousCpuUsage }
+        'CPU usage', formatMetricValue(cpuUsage, 'percent'),
+        `Total ${logicalCpuCores ? `${formatNumber(logicalCpuCores, 0)} logical cores` : 'N/A'}`, '',
+        { current: cpuUsage, previous: previousCpuUsage }
       );
       addWorkloadKpi(
-        'Total memory', formatCapacity(totalMemoryBytes),
-        `Usage ${formatMetricValue(memoryUsage, 'percent')}`, '', { current: memoryUsage, previous: previousMemoryUsage }
+        'Memory usage', formatMetricValue(memoryUsage, 'percent'),
+        `Total ${formatCapacity(totalMemoryBytes)}`, '', { current: memoryUsage, previous: previousMemoryUsage }
       );
       addWorkloadKpi(
-        'Total storage', formatCapacity(totalStorageBytes),
-        `Estimated used ${formatMetricValue(storageUsedPercent, 'percent')}`
+        'Storage used', formatMetricValue(storageUsedPercent, 'percent'),
+        `Total ${formatCapacity(totalStorageBytes)}`
       );
       addWorkloadKpi(
         'Disk I/O', formatMetricValue(diskIops, 'operationsPerSecond'),
@@ -1760,9 +1763,15 @@
       updateControls();
     }
 
-    async function loadMonitoringStatus() {
+    async function loadMonitoringStatus(refreshDetail = true) {
       try {
-        renderMonitoringStatus(await request('/api/monitoring/session'));
+        const detailLastCollectedAt = state.monitoringDetail?.status?.lastCollectedAt;
+        const result = await request('/api/monitoring/session');
+        renderMonitoringStatus(result);
+        if (refreshDetail && result.exists && result.lastCollectedAt &&
+            result.lastCollectedAt !== detailLastCollectedAt) {
+          await loadMonitoringDetail();
+        }
       } catch (error) {
         setError('monitoringError', error);
       }
@@ -1855,7 +1864,7 @@
     }
 
     async function initializeMonitoring() {
-      await loadMonitoringStatus();
+      await loadMonitoringStatus(false);
       await loadMonitoringDetail();
       const serverKey = new URLSearchParams(location.search).get('server');
       if (state.monitoring?.state !== 'active' && serverKey && /^[a-f0-9]{16}$/.test(serverKey)) {

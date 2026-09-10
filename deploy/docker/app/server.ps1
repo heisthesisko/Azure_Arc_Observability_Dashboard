@@ -63,7 +63,7 @@ Architecture (enterprise scale):
 #>
 
 $ErrorActionPreference = 'Stop'
-$applicationVersion = 'v1.0.1'
+$applicationVersion = 'v1.0.2'
 
 if ($PSVersionTable.PSVersion -lt [version]'7.4' -or -not $IsLinux) {
     throw 'PowerShell 7.4 or later on Linux is required to run this dashboard package.'

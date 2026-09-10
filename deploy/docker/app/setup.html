@@ -58,6 +58,12 @@
       color: var(--text); font: inherit; padding: 10px 12px;
     }
     input, select { min-width: 0; flex: 1; }
+    .masked-input { position: relative; min-width: 0; flex: 1; }
+    .masked-input input { width: 100%; padding-right: 70px; }
+    .input-visibility {
+      position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+      padding: 5px 9px; color: var(--cyan); font-size: 12px; background: #14222d;
+    }
     button { cursor: pointer; font-weight: 600; }
     button.primary { background: var(--blue); border-color: var(--blue); color: #071019; }
     button:hover { border-color: var(--cyan); }
@@ -141,7 +147,10 @@
         <div class="step-header"><span class="step-number">2</span><h2>Sign in to Azure</h2><span class="status" id="loginStatus">Waiting</span></div>
         <div class="step-body">
           <div class="row">
-            <input id="tenantId" placeholder="Optional tenant/directory ID">
+            <div class="masked-input">
+              <input id="tenantId" type="password" autocomplete="off" spellcheck="false" placeholder="Optional tenant/directory ID">
+              <button class="input-visibility" id="toggleTenantId" type="button" aria-label="Show tenant or directory ID">Show</button>
+            </div>
             <button class="primary" id="login">Start device sign-in</button>
           </div>
           <div class="hint">Leave the tenant blank to use your default directory, or enter a tenant ID when the target subscription is in another directory.</div>
@@ -169,7 +178,10 @@
             <span>Configuring the dashboard and discovering monitoring workspaces. Please wait...</span>
           </div>
           <div class="toolbar">
-            <input id="groupSearch" type="search" placeholder="Filter resource groups">
+            <div class="masked-input">
+              <input id="groupSearch" type="password" autocomplete="off" spellcheck="false" placeholder="Filter resource groups">
+              <button class="input-visibility" id="toggleGroupSearch" type="button" aria-label="Show resource group filter">Show</button>
+            </div>
             <button id="selectAll">Select all</button>
             <button id="selectNone">Clear</button>
             <span class="hint" id="selectedCount"></span>
@@ -489,8 +501,20 @@
       }
     }
 
+    function configureVisibilityToggle(inputId, buttonId, label) {
+      byId(buttonId).addEventListener('click', () => {
+        const input = byId(inputId);
+        const revealed = input.type === 'password';
+        input.type = revealed ? 'text' : 'password';
+        byId(buttonId).textContent = revealed ? 'Hide' : 'Show';
+        byId(buttonId).setAttribute('aria-label', `${revealed ? 'Hide' : 'Show'} ${label}`);
+      });
+    }
+
     byId('installCli').addEventListener('click', installCli);
     byId('login').addEventListener('click', login);
+    configureVisibilityToggle('tenantId', 'toggleTenantId', 'tenant or directory ID');
+    configureVisibilityToggle('groupSearch', 'toggleGroupSearch', 'resource group filter');
     byId('copyCode').addEventListener('click', () => navigator.clipboard.writeText(byId('deviceCode').textContent));
     byId('subscription').addEventListener('change', () => { byId('loadGroups').disabled = !byId('subscription').value; });
     byId('loadGroups').addEventListener('click', loadGroups);

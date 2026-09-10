@@ -1,5 +1,50 @@
 # Azure Arc Observability Dashboard release notes
 
+## v1.0.2 - 2026-09-10
+
+This patch release repairs single-server monitoring time-series updates and improves
+monitoring-page privacy and initial presentation.
+
+### Fixed
+
+- Recurring single-server observations now use their actual collection time instead of
+  the slower shared inventory snapshot timestamp. This prevents valid minute-by-minute
+  observations from being deduplicated.
+- The browser now refreshes monitoring chart detail as soon as status polling detects a
+  completed collection.
+- Missing snapshot metrics are no longer converted into false zero-value chart samples.
+- Chart samples are explicitly ordered by timestamp before SVG time-series rendering.
+
+### Changed
+
+- Workload CPU, memory, and storage tiles now show utilization percentage as the primary
+  value and total cores or capacity as the smaller supporting value.
+- Single-server setup, live detail, operational timeline, recent events, workload
+  monitoring, and selected-server panes start collapsed on page load or browser refresh.
+  Automatic monitoring polling preserves panes the user has opened.
+- Tenant/directory ID and resource-group filter inputs on the setup page are masked by
+  default and include accessible Show/Hide controls.
+- The visible dashboard version, Kubernetes chart versions, chart application versions,
+  and default dashboard image tags are updated to `1.0.2`.
+
+### Release assets
+
+| Archive | Intended target |
+|---|---|
+| `Azure-Arc-Observability-Dashboard-WindowsServer-v1.0.2.zip` | Windows workstation or Windows Server |
+| `Azure-Arc-Observability-Dashboard-LinuxServer-v1.0.2.zip` | Ubuntu, Debian, Fedora, or RHEL-family Linux |
+| `Azure-Arc-Observability-Dashboard-Docker-v1.0.2.zip` | Local Docker Engine or Docker Desktop |
+| `Azure-Arc-Observability-Dashboard-AKS-v1.0.2.zip` | Azure Kubernetes Service |
+| `Azure-Arc-Observability-Dashboard-OpenShift-v1.0.2.zip` | Red Hat OpenShift |
+
+Use the accompanying `SHA256SUMS.txt` file to verify archive integrity.
+
+### Upgrade notes
+
+No configuration or persistent-state migration is required from `v1.0.0` or `v1.0.1`.
+Replace the application files or image using the platform guide while preserving only the
+documented configuration and persistent-data locations.
+
 ## v1.0.1 - 2026-09-08
 
 This patch release adds the dashboard version to the user interface so operators can

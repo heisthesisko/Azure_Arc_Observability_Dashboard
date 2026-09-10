@@ -538,7 +538,7 @@ function Update-ServerMonitoringSession {
         $next = $current | ConvertTo-Json -Depth 15 | ConvertFrom-Json -AsHashtable
         $next.metrics = $metrics
         $next.events = $events
-        $observation = Get-MonitoringObservation -Server $server -ObservedAt ([string]$operations.generatedAt)
+        $observation = Get-MonitoringObservation -Server $server -ObservedAt $now.ToString('o')
         $existingObservationTimes = @($next.observations | ForEach-Object { [string]$_.time })
         if ([string]$observation.time -notin $existingObservationTimes) {
             $next.observations = @(@($next.observations) + $observation |
